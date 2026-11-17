@@ -1,31 +1,34 @@
-# Roadmap — Resonance
+# Roadmap — Korz
 
-**Version actuelle : v0.0.1** (validée : `npm run build`, `npm test`, `cargo check` OK)
+**Version actuelle : v0.0.2** (validée : `npm run build`, `npm test`, `cargo check`, `npm run tauri dev`)
 
 ## Historique
 
+### v0.0.2 — Vrai catalogue, recherche style Spotify, bibliothèque locale
+- [x] Projet déplacé sur un chemin court (`E:\Korz`), dépôt git initialisé (commit v0.0.1).
+- [x] Renommage en **Korz** : config Tauri, identifiant `com.korz.app`, crate `korz`, titre, logo (`app-icon.svg` + icônes générées).
+- [x] `services/musicApi.ts` : API publique Deezer via `plugin-http` (Rust, sans CORS), repli iTunes Search. Vrais artistes, pochettes HD, durées, extraits audio.
+- [x] Filtre strict : karaoké, tribute, 8D, slowed, nightcore, sped up, remix exclus sauf demande ; doublons supprimés ; reprises peu populaires d'un même titre écartées ; profils « squatteurs » de nom exclus.
+- [x] Barre de recherche dans la top bar + menu flottant : suggestions texte, carte artiste (photo ronde, badge, S'abonner/Abonné), cartes titres (pochette, badge E, artistes, bouton +), navigation clavier ↑/↓/Entrée/Échap, debounce 200 ms, cache Zustand, stale-while-revalidate.
+- [x] Page recherche complète (meilleur résultat artiste ou titre, titres, artistes, liste virtualisée).
+- [x] Page artiste réelle : photo officielle, fond flouté, fans, top titres, discographie dédoublonnée, abonnement ; préchargement au survol.
+- [x] Accueil : charts Deezer (titres + artistes du moment) et abonnements.
+- [x] Bibliothèque : titres likés, artistes suivis, fichiers locaux (dialogue dossier, scan récursif MP3/FLAC/WAV/M4A/AAC/OGG/OPUS, lecture via asset protocol, accès conservé entre sessions).
+- [x] Tests unitaires du filtre, du classement, des suggestions, de l'expiration des previews et du parsing de fichiers.
+
 ### v0.0.1 — Fondations
-- [x] Projet Tauri v2 + React + TS strict + Tailwind v4 initialisé.
-- [x] Plugins Tauri : store, fs, dialog, os, window-state (Rust + JS + capabilities).
-- [x] Dépendances : zustand, react-virtual, lucide, framer-motion, clsx, tailwind-merge, sonner, Radix (slider, dialog, switch, tooltip), polices Inter + Plus Jakarta Sans locales.
-- [x] Architecture `src/{components/{ui,player,layout,track},pages,store,services,types,hooks,lib}`.
-- [x] Layout sombre : sidebar fixe (Accueil, Recherche, Bibliothèque, artistes, profil → Paramètres), top bar back/forward.
-- [x] Lecteur persistant : play/pause, précédent/suivant, progression fluide (rAF), seek au relâchement, volume + mute persistés, Media Session (touches média OS).
-- [x] Navigation instantanée (Zustand) avec historique ; vue artiste dédiée.
-- [x] Recherche locale : debounce 200 ms, cache par requête, filtrage strict insensible aux accents.
-- [x] Liste de titres virtualisée (`@tanstack/react-virtual`).
-- [x] Paramètres : qualité audio, accélération matérielle (appliquée côté Rust au démarrage), profil local (nom, couleur), réinitialisation (Radix Dialog), infos système (plugin-os). Sauvegarde automatique via plugin-store.
+- [x] Tauri v2 + React + TS strict + Tailwind v4, plugins store/fs/dialog/os/window-state.
+- [x] Layout sombre, lecteur persistant (Radix Slider), navigation instantanée, liste virtualisée, paramètres persistés, toggle accélération matérielle (Rust).
 
-Limites connues v0.0.1 :
-- Pistes de test = MP3 de démo SoundHelix (réseau requis). Le réglage « qualité audio » est stocké mais n'a pas encore d'effet.
-- Durées affichées seulement après chargement des métadonnées d'un titre.
-- Fenêtre native (`tauri dev`) non testée visuellement ; front validé dans le navigateur, Rust validé par `cargo check`.
+Limites connues v0.0.2 :
+- Catalogue public = extraits de 30 s (badge « Extrait » dans le lecteur).
+- Fichiers locaux : métadonnées tirées du nom de fichier (`Artiste - Titre.ext`) et du dossier ; pas encore de lecture des tags ni des pochettes intégrées.
+- Albums affichés mais pas encore cliquables.
 
-## Prochaine version : v0.0.2 — Bibliothèque locale
-- [ ] Import de dossiers audio via `plugin-dialog` + lecture des fichiers via `plugin-fs` / `convertFileSrc` (scope fs restreint au dossier choisi).
-- [ ] Lecture des tags (titre, artiste, album, durée, pochette) côté Rust (`lofty`) pour des durées et métadonnées immédiates.
-- [ ] Cache de la bibliothèque dans plugin-store ; rescan incrémental.
-- [ ] Remplacer le catalogue de test par la bibliothèque locale (garder le catalogue démo si vide).
-- [ ] Test de charge : 10 000 titres virtualisés, défilement fluide mesuré.
-- [ ] Raccourcis clavier (Espace, ←/→, Ctrl+F).
-- [ ] Valider `tauri dev` sur Windows (fenêtre, window-state, toggle GPU).
+## Prochaine version : v0.0.3 — Albums, tags et file d'attente
+- [ ] Page album (Deezer `/album/{id}`) depuis la discographie et les titres.
+- [ ] Lecture des tags (titre, artiste, album, durée, pochette) des fichiers locaux côté Rust (`lofty`).
+- [ ] File d'attente visible (panneau latéral), aléatoire et répétition.
+- [ ] Raccourcis clavier globaux (Espace, ←/→, Ctrl+K pour la recherche).
+- [ ] Test de charge : 10 000 titres locaux virtualisés, défilement mesuré.
+- [ ] Barre de titre personnalisée (décorations natives désactivées) cohérente avec le thème.

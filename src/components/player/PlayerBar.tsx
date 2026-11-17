@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Pause, Play, SkipBack, SkipForward, Volume, Volume1, Volume2, VolumeX } from "lucide-react";
 import { formatTime } from "@/lib/format";
-import { getArtist } from "@/services/catalog";
 import { usePlayer, useCurrentTrack } from "@/store/player";
-import { useNavigation } from "@/store/navigation";
 import { Slider } from "@/components/ui/Slider";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { IconButton } from "@/components/ui/IconButton";
 import { Artwork } from "@/components/ui/Artwork";
+import { ArtistLinks } from "@/components/track/ArtistLinks";
+import { LikeButton } from "@/components/track/LikeButton";
 
 export function PlayerBar() {
   return (
@@ -21,24 +21,24 @@ export function PlayerBar() {
 
 function NowPlaying() {
   const track = useCurrentTrack();
-  const navigate = useNavigation((s) => s.navigate);
   if (!track) return <div className="text-[13px] text-faint">Aucune lecture en cours</div>;
-  const artist = getArtist(track.artistId);
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <Artwork hue={track.hue} className="size-14" />
+      <Artwork src={track.cover} seed={track.id} className="size-14" />
       <div className="min-w-0">
-        <div className="truncate text-[14px] font-medium text-fg">{track.title}</div>
-        {artist && (
-          <button
-            type="button"
-            onClick={() => navigate({ name: "artist", id: artist.id })}
-            className="truncate text-[12px] text-muted transition-colors hover:text-fg hover:underline"
-          >
-            {artist.name}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <span className="truncate text-[14px] font-medium text-fg">{track.title}</span>
+          {track.source !== "local" && (
+            <Tooltip label="Le catalogue public ne fournit que des extraits de 30 secondes">
+              <span className="shrink-0 rounded-[4px] bg-white/[0.08] px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-muted">
+                Extrait
+              </span>
+            </Tooltip>
+          )}
+        </div>
+        <ArtistLinks artists={track.artists} className="text-[12px]" />
       </div>
+      <LikeButton track={track} />
     </div>
   );
 }

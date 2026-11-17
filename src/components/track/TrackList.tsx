@@ -4,14 +4,15 @@ import { AudioLines, Play } from "lucide-react";
 import type { Track } from "@/types";
 import { cn } from "@/lib/cn";
 import { formatTime } from "@/lib/format";
-import { getArtist } from "@/services/catalog";
 import { usePlayer, useCurrentTrack } from "@/store/player";
-import { useNavigation } from "@/store/navigation";
 import { useScrollContainer } from "@/components/layout/ScrollContext";
 import { Artwork } from "@/components/ui/Artwork";
+import { ExplicitBadge } from "@/components/ui/Badges";
+import { ArtistLinks } from "./ArtistLinks";
+import { LikeButton } from "./LikeButton";
 
 const ROW_HEIGHT = 56;
-const GRID = "grid grid-cols-[36px_minmax(0,1.4fr)_minmax(0,1fr)_56px] items-center gap-4 px-4";
+const GRID = "grid grid-cols-[36px_minmax(0,1.5fr)_minmax(0,1fr)_32px_56px] items-center gap-4 px-4";
 
 /** Virtualized against the page scroll container: thousands of rows keep a constant DOM size. */
 export function TrackList({ tracks, showAlbum = true }: { tracks: Track[]; showAlbum?: boolean }) {
@@ -22,7 +23,6 @@ export function TrackList({ tracks, showAlbum = true }: { tracks: Track[]; showA
   const isPlaying = usePlayer((s) => s.isPlaying);
   const durations = usePlayer((s) => s.durations);
   const playQueue = usePlayer((s) => s.playQueue);
-  const navigate = useNavigation((s) => s.navigate);
 
   useLayoutEffect(() => {
     const list = listRef.current;
@@ -46,13 +46,13 @@ export function TrackList({ tracks, showAlbum = true }: { tracks: Track[]; showA
         <span role="columnheader" className="text-right">#</span>
         <span role="columnheader">Titre</span>
         <span role="columnheader">{showAlbum ? "Album" : ""}</span>
+        <span role="columnheader" />
         <span role="columnheader" className="text-right">Durée</span>
       </div>
       <div ref={listRef} className="relative mt-2" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((item) => {
           const track = tracks[item.index]!;
           const active = current?.id === track.id;
-          const artist = getArtist(track.artistId);
           return (
             <div
               key={track.id}
@@ -78,23 +78,21 @@ export function TrackList({ tracks, showAlbum = true }: { tracks: Track[]; showA
                 </button>
               </div>
               <div role="cell" className="flex min-w-0 items-center gap-3">
-                <Artwork hue={track.hue} className="size-10 rounded-[4px] shadow-none" />
+                <Artwork src={track.cover} seed={track.id} className="size-10 rounded-[4px] shadow-none" />
                 <div className="min-w-0">
                   <div className={cn("truncate text-[14px] font-medium", active ? "text-accent" : "text-fg")}>{track.title}</div>
-                  {artist && (
-                    <button
-                      type="button"
-                      onClick={() => navigate({ name: "artist", id: artist.id })}
-                      className="truncate text-[13px] text-muted transition-colors hover:text-fg hover:underline"
-                    >
-                      {artist.name}
-                    </button>
-                  )}
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    {track.explicit && <ExplicitBadge />}
+                    <ArtistLinks artists={track.artists} />
+                  </div>
                 </div>
               </div>
-              <div role="cell" className="truncate text-[13px] text-muted">{showAlbum ? track.album : ""}</div>
+              <div role="cell" className="truncate text-[13px] text-muted">{showAlbum ? track.album?.title : ""}</div>
+              <div role="cell">
+                <LikeButton track={track} className="opacity-0 group-hover:opacity-100 aria-pressed:opacity-100" />
+              </div>
               <div role="cell" className="text-right text-[13px] tabular-nums text-faint">
-                {formatTime(durations[track.id] ?? NaN)}
+                {formatTime(track.duration || (durations[track.id] ?? NaN))}
               </div>
             </div>
           );

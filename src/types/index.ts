@@ -1,18 +1,61 @@
-export interface Artist {
-  id: string;
+export type Source = "deezer" | "itunes" | "local";
+
+/** `id` is prefixed by source (`dz-27`, `it-909253`); local files have no artist id. */
+export interface ArtistRef {
+  id?: string;
   name: string;
-  genre: string;
-  /** Hue (0-360) driving the generated artwork. */
-  hue: number;
 }
 
 export interface Track {
+  /** `dz-<id>`, `it-<id>` or `local:<absolute path>`. */
   id: string;
   title: string;
-  artistId: string;
-  album: string;
+  artists: ArtistRef[];
+  album?: { id?: string; title: string };
+  cover?: string;
+  coverLarge?: string;
+  /** Full track length in seconds; 0 when unknown (local files before first play). */
+  duration: number;
+  explicit: boolean;
+  /** Deezer popularity (0-1 000 000), used to drop low-ranked duplicates of the same title. */
+  rank?: number;
+  /** Remote: preview URL. Local: absolute file path (converted to an asset URL at play time). */
   src: string;
-  hue: number;
+  source: Source;
+}
+
+export interface Artist {
+  id: string;
+  name: string;
+  picture?: string;
+  pictureLarge?: string;
+  fans?: number;
+}
+
+export interface Album {
+  id: string;
+  title: string;
+  cover?: string;
+  year?: string;
+  type?: string;
+}
+
+export interface ArtistPageData {
+  artist: Artist;
+  top: Track[];
+  albums: Album[];
+}
+
+export interface SearchResults {
+  tracks: Track[];
+  artists: Artist[];
+  topArtist?: Artist;
+  suggestions: string[];
+}
+
+export interface HomeData {
+  tracks: Track[];
+  artists: Artist[];
 }
 
 export type AudioQuality = "low" | "normal" | "high" | "lossless";

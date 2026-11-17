@@ -11,6 +11,19 @@
     "store:default",
     "fs:default",
     "dialog:default",
-    "os:default"
+    "os:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://api.deezer.com/*"
+        },
+        {
+          "url": "https://itunes.apple.com/*"
+        }
+      ]
+    },
+    "fs:allow-read-dir",
+    "fs:allow-stat"
   ]
 }

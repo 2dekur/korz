@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import type { Track } from "@/types";
 import { audio } from "@/services/audio";
 import { readKey, writeKey } from "@/services/persist";
-import { getArtist } from "@/services/catalog";
+import { playableSrc } from "@/services/musicApi";
 
 interface PlayerState {
   queue: Track[];
@@ -13,7 +13,7 @@ interface PlayerState {
   duration: number;
   volume: number;
   muted: boolean;
-  /** Durations learned from loaded metadata, keyed by track id. */
+  /** Durations learned from loaded metadata for tracks whose length was unknown (local files). */
   durations: Record<string, number>;
   playQueue: (tracks: Track[], startIndex?: number) => void;
   toggle: () => void;
@@ -33,12 +33,23 @@ const play = () =>
   });
 
 export const usePlayer = create<PlayerState>((set, get) => {
-  const load = (index: number) => {
+  let token = 0;
+  const load = async (index: number) => {
     const track = get().queue[index];
     if (!track) return;
-    set({ index, position: 0, duration: get().durations[track.id] ?? 0 });
-    audio.src = track.src;
-    void play();
+    const mine = ++token;
+    audio.pause();
+    set({ index, position: 0, duration: 0 });
+    try {
+      const src = await playableSrc(track);
+      if (mine !== token) return; // a newer track was requested meanwhile
+      audio.src = src;
+      void play();
+    } catch (err) {
+      if (mine !== token) return;
+      console.error(err);
+      toast.error("Lecture impossible", { description: `« ${track.title} » est indisponible.` });
+    }
   };
 
   return {
@@ -58,7 +69,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
         return;
       }
       set({ queue: tracks });
-      load(startIndex);
+      void load(startIndex);
     },
     toggle: () => {
       if (get().index < 0) return;
@@ -67,7 +78,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     },
     next: () => {
       const { index, queue } = get();
-      if (index < queue.length - 1) load(index + 1);
+      if (index < queue.length - 1) void load(index + 1);
       else {
         audio.pause();
         audio.currentTime = 0;
@@ -76,7 +87,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     prev: () => {
       const { index } = get();
       if (audio.currentTime > 3 || index <= 0) audio.currentTime = 0;
-      else load(index - 1);
+      else void load(index - 1);
     },
     seek: (seconds) => {
       audio.currentTime = seconds;
@@ -120,10 +131,13 @@ audio.addEventListener("loadedmetadata", () => {
   const { queue, index, durations } = usePlayer.getState();
   const track = queue[index];
   if (!track) return;
-  usePlayer.setState({ duration: audio.duration, durations: { ...durations, [track.id]: audio.duration } });
+  usePlayer.setState({ duration: audio.duration });
+  // Remote tracks play a 30 s preview: only unknown (local) lengths are learned from the file.
+  if (!track.duration) usePlayer.setState({ durations: { ...durations, [track.id]: audio.duration } });
 });
 audio.addEventListener("ended", () => usePlayer.getState().next());
 audio.addEventListener("error", () => {
+  if (!audio.getAttribute("src")) return;
   const track = usePlayer.getState().queue[usePlayer.getState().index];
   usePlayer.setState({ isPlaying: false });
   toast.error("Lecture impossible", { description: track ? `« ${track.title} » est indisponible.` : undefined });
@@ -149,8 +163,9 @@ if ("mediaSession" in navigator) {
     if (!track || track === prev.queue[prev.index]) return;
     ms.metadata = new MediaMetadata({
       title: track.title,
-      artist: getArtist(track.artistId)?.name ?? "",
-      album: track.album,
+      artist: track.artists.map((a) => a.name).join(", "),
+      album: track.album?.title ?? "",
+      artwork: track.coverLarge ? [{ src: track.coverLarge, sizes: "1000x1000", type: "image/jpeg" }] : [],
     });
   });
 }

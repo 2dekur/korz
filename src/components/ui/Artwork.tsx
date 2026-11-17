@@ -1,7 +1,19 @@
 import { cn } from "@/lib/cn";
+import { hueFromSeed } from "@/lib/music";
 
-/** Generated artwork: layered gradients from a hue, so covers render instantly with no network. */
-export function Artwork({ hue, className, round, label }: { hue: number; className?: string; round?: boolean; label?: string }) {
+interface ArtworkProps {
+  src?: string;
+  /** Picks the placeholder gradient when there is no image (or while it loads). */
+  seed?: string;
+  hue?: number;
+  className?: string;
+  round?: boolean;
+  label?: string;
+}
+
+/** Cover/photo with a generated gradient underneath: no layout shift and no blank box while loading. */
+export function Artwork({ src, seed = "", hue, className, round, label }: ArtworkProps) {
+  const h = hue ?? hueFromSeed(seed);
   return (
     <div
       className={cn(
@@ -11,12 +23,22 @@ export function Artwork({ hue, className, round, label }: { hue: number; classNa
         className,
       )}
       style={{
-        background: `radial-gradient(120% 90% at 18% 12%, hsl(${hue} 85% 68% / 0.95), transparent 55%),
-          radial-gradient(90% 90% at 90% 100%, hsl(${(hue + 50) % 360} 70% 40%), transparent 60%),
-          linear-gradient(150deg, hsl(${hue} 55% 34%), hsl(${(hue + 30) % 360} 45% 12%))`,
+        background: `radial-gradient(120% 90% at 18% 12%, hsl(${h} 70% 60% / 0.9), transparent 55%),
+          linear-gradient(150deg, hsl(${h} 45% 30%), hsl(${(h + 30) % 360} 40% 12%))`,
       }}
-      aria-hidden={!label}
     >
+      {src && (
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          className="absolute inset-0 size-full object-cover opacity-0 transition-opacity duration-300"
+          onLoad={(e) => e.currentTarget.classList.remove("opacity-0")}
+          onError={(e) => (e.currentTarget.style.display = "none")}
+        />
+      )}
       {label && (
         <span className="absolute inset-0 flex items-center justify-center font-display text-[36cqw] font-bold text-white/90">
           {label}

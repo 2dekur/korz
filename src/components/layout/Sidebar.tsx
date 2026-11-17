@@ -1,9 +1,11 @@
 import { House, Library, Search, Settings, type LucideIcon } from "lucide-react";
 import type { Route } from "@/types";
 import { cn } from "@/lib/cn";
-import { artists } from "@/services/catalog";
 import { useNavigation, useRoute } from "@/store/navigation";
 import { useSettings } from "@/store/settings";
+import { useLibrary } from "@/store/library";
+import { useSearch } from "@/store/search";
+import { prefetchArtist } from "@/store/catalog";
 import { Artwork, initials } from "@/components/ui/Artwork";
 import { Logo } from "@/components/ui/Logo";
 
@@ -17,6 +19,7 @@ export function Sidebar() {
   const route = useRoute();
   const navigate = useNavigation((s) => s.navigate);
   const profile = useSettings((s) => s.profile);
+  const followed = useLibrary((s) => s.followed);
 
   return (
     <aside className="flex min-h-0 flex-col border-r border-line bg-bg">
@@ -27,22 +30,33 @@ export function Sidebar() {
 
       <nav className="flex flex-col gap-0.5 px-3" aria-label="Navigation principale">
         {NAV.map(({ route: r, label, icon: Icon }) => (
-          <NavItem key={r.name} active={route.name === r.name} onClick={() => navigate(r)}>
+          <NavItem
+            key={r.name}
+            active={route.name === r.name}
+            onClick={() => {
+              navigate(r);
+              if (r.name === "search") useSearch.getState().focus();
+            }}
+          >
             <Icon className="size-[18px]" strokeWidth={route.name === r.name ? 2.25 : 1.75} />
             {label}
           </NavItem>
         ))}
       </nav>
 
-      <div className="mt-8 px-6 pb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-faint">Artistes</div>
+      <div className="mt-8 px-6 pb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-faint">Abonnements</div>
       <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3">
-        {artists.map((a) => (
+        {followed.length === 0 && (
+          <p className="px-3 text-[12px] leading-relaxed text-faint">Abonnez-vous à des artistes pour les retrouver ici.</p>
+        )}
+        {followed.map((a) => (
           <NavItem
             key={a.id}
             active={route.name === "artist" && route.id === a.id}
             onClick={() => navigate({ name: "artist", id: a.id })}
+            onPointerEnter={() => prefetchArtist(a.id)}
           >
-            <Artwork hue={a.hue} round className="size-7 shadow-none" />
+            <Artwork src={a.picture} seed={a.id} round className="size-7 shadow-none" />
             <span className="truncate">{a.name}</span>
           </NavItem>
         ))}
@@ -59,11 +73,22 @@ export function Sidebar() {
   );
 }
 
-function NavItem({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function NavItem({
+  active,
+  onClick,
+  onPointerEnter,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  onPointerEnter?: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
+      onPointerEnter={onPointerEnter}
       aria-current={active ? "page" : undefined}
       className={cn(
         "flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-[14px] font-medium transition-colors duration-100",
