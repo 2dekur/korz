@@ -1,7 +1,7 @@
 # Korz — mémoire projet
 
 Lecteur de streaming musical desktop. Tauri v2 + React 19 + TypeScript strict + Tailwind v4.
-Version actuelle : **v0.0.3** (voir `ROADMAP.md`). Dépôt git, branche `main`.
+Version actuelle : **v0.0.4** (voir `ROADMAP.md`). Dépôt git, branche `main`.
 
 ## Règles d'or (non négociables)
 
@@ -20,9 +20,13 @@ Version actuelle : **v0.0.3** (voir `ROADMAP.md`). Dépôt git, branche `main`.
 | Plugins Tauri | `plugin-store`, `plugin-fs`, `plugin-dialog`, `plugin-os`, `plugin-window-state`, `plugin-http`, `plugin-persisted-scope` (feature `protocol-asset`), `plugin-opener` (template) |
 | Front | React 19, Vite 8, TypeScript 6 (`strict`, `noUncheckedIndexedAccess`), Tailwind CSS 4 (`@tailwindcss/vite`) |
 | État / perf | `zustand`, `@tanstack/react-virtual` |
+| Moteur audio (Rust) | `rustypipe` 0.11 (**GPL-3.0** : un binaire distribué devrait l'être sous GPL-3.0), `tokio` (dev, tests async) |
 | Design | `lucide-react`, `framer-motion`, `clsx` + `tailwind-merge` (`cn()`), `sonner`, Radix (`slider`, `dialog`, `switch`, `tooltip`), `@fontsource-variable/inter`, `@fontsource-variable/plus-jakarta-sans` |
 
-Lecture complète : `src-tauri/src/stream.rs` (Rust) résout chaque titre Deezer vers sa piste officielle YouTube Music (recherche Piped `music_songs`, repli recherche Invidious), puis sert l'audio par plages via le protocole `korzstream://localhost/<videoId>` (proxy Invidious avec en-têtes navigateur). Instances classées par latence, bascule automatique, annuaires publics interrogés au démarrage.
+Lecture complète (moteur hybride, `src-tauri/src/stream.rs`) :
+- **Recherche + correspondance en local** avec `rustypipe` (YouTube Music Innertube depuis le PC de l'utilisateur, aucun serveur tiers, 0,3-0,9 s). Repli : recherche via relais Invidious si YouTube Music est injoignable.
+- **Flux audio via relais Invidious** servi par plages sur `korzstream://localhost/<videoId>` (en-têtes navigateur, relais triés par latence, bascule, annuaire public au démarrage). YouTube refuse l'accès direct au flux au-delà du premier segment sans jeton Botguard (PO token).
+- **Interdit : ne jamais générer de PO token ni lancer de solveur Botguard** (`rustypipe-botguard` ou équivalent) : c'est du contournement de détection anti-bot. `RustyPipe::builder().no_botguard()` est obligatoire.
 
 Permissions : `src-tauri/capabilities/default.json` (http limité à `api.deezer.com` et `itunes.apple.com`, `fs:allow-read-dir`, `fs:allow-stat`) + `desktop.json` (window-state). Asset protocol activé avec scope vide : seuls les dossiers choisis via le dialogue sont accessibles (le dialogue ajoute le scope, persisted-scope le conserve).
 
@@ -61,7 +65,7 @@ src/
     player/PlayerBar    lecteur persistant
   pages/                Home (charts), Search, Library (onglets), Artist, Settings
 src-tauri/src/lib.rs    plugins (persisted-scope après fs), protocole korzstream, commandes stream, fenêtre `main`
-src-tauri/src/stream.rs résolveur flux complet : pool d'instances, correspondance stricte (±4 s, sans remix/live/cover/clip…), cache formats + premier segment, proxy Range
+src-tauri/src/stream.rs moteur hybride : recherche rustypipe locale, correspondance stricte (±4 s, sans remix/live/cover/clip…), relais Invidious, cache formats + premiers segments, proxy Range
 ```
 
 ## Conventions
@@ -89,7 +93,8 @@ cd src-tauri && cargo check && cargo test
 
 ## Limites connues
 
-- La lecture complète dépend d'instances publiques Piped/Invidious (2 actives au 17/11/2026) : si toutes tombent, la lecture échoue (extraits 30 s activables dans Paramètres > Sources audio).
+- Le flux audio dépend encore de relais publics Invidious (1 actif au 17/11/2026) ; la recherche, elle, est locale. Si tous les relais tombent, la lecture échoue (extraits 30 s activables dans Paramètres > Sources audio).
+- Données rustypipe de l'app : dossier cache de l'app (`<app cache>/rustypipe`). Les tests tournent sans stockage ; `rustypipe_cache.json` / `rustypipe_reports/` sont ignorés par git.
 - Diffuser l'audio YouTube hors du lecteur officiel contrevient aux conditions d'utilisation de YouTube : usage personnel uniquement, ne pas distribuer de build public.
 - Premier lancement d'un titre jamais vu : 1 à 3 s (recherche + format) ; les titres visibles/survolés/suivants sont pré-chargés.
 - Quota Deezer : 50 requêtes / 5 s par IP ; le cache + debounce restent largement en dessous.

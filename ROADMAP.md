@@ -1,8 +1,17 @@
 # Roadmap — Korz
 
-**Version actuelle : v0.0.3** (validée : `npm run build`, `npm test`, `cargo check`, `cargo test` dont tests réseau, lecture native Werenoi/Avie)
+**Version actuelle : v0.0.4** (validée : `npm run build`, `npm test`, `cargo check`, `cargo test` dont tests réseau, lecture native Werenoi/Avie)
 
 ## Historique
+
+### v0.0.4 — Moteur hybride
+- [x] Recherche et correspondance en local avec `rustypipe` (YouTube Music direct, plus de Piped) : 0,3-0,9 s au lieu de 0,6-4 s.
+- [x] Flux audio via relais Invidious conservé (YouTube coupe l'accès direct après le 1er segment sans jeton Botguard, que Korz ne génère pas).
+- [x] Repli recherche via relais si YouTube Music est injoignable ; relais triés par latence, annuaire public au démarrage.
+- [x] Cache (trackId→videoId persistant, formats, 8 premiers segments) et pré-chargement (suivant, survol, premiers titres affichés) inchangés.
+- [x] Tests : correspondance, Content-Range jamais au-delà de la fin du fichier, test réseau qui sert un titre entier octet par octet.
+- [x] Testé en natif : Werenoi (3:12, lecture continue), Avie « LUNA&MONICA » (2:39, démarrage < 2 s).
+- [x] Nettoyage des fichiers de test, `rustypipe_cache.json` et `rustypipe_reports/` ajoutés au `.gitignore`.
 
 ### v0.0.3 — Lecture complète
 - [x] Badge « Extrait » supprimé ; Deezer ne sert plus que de base de métadonnées.
@@ -33,8 +42,8 @@ Limites connues v0.0.3 :
 - Lecture complète dépendante de 1-2 instances publiques Piped/Invidious ; usage personnel uniquement (CGU YouTube).
 - Fichiers locaux : métadonnées tirées du nom de fichier ; albums non cliquables.
 
-## Prochaine version : v0.0.4 — Moteur autonome, albums, file d'attente
-- [ ] Extraction YouTube Music directement en Rust (crate `rustypipe`) : plus de dépendance aux instances publiques.
+## Prochaine version : v0.0.5 — Albums et file d'attente
 - [ ] Page album (Deezer `/album/{id}`) depuis la discographie et les titres.
 - [ ] File d'attente visible, aléatoire, répétition ; raccourcis clavier (Espace, ←/→, Ctrl+K).
 - [ ] Tags et pochettes des fichiers locaux (`lofty`).
+- [ ] Indicateur discret de l'état des relais dans Paramètres > Sources audio.

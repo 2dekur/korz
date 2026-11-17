@@ -1,37 +1,37 @@
 //! Full-length playback: Deezer metadata in, matching YouTube Music audio out.
 //!
-//! - Search: Piped `music_songs` (official YouTube Music tracks), Invidious video search as fallback.
-//! - Match: strict filter (no remix/live/cover/…, unless asked) + official duration ±4 s.
-//! - Playback: the webview loads `korzstream://localhost/<videoId>`; this module proxies byte ranges from an
-//!   Invidious instance (which needs browser-like headers the webview cannot set), so audio starts after the
-//!   first small chunk instead of after a full download.
+//! Hybrid engine:
+//! - Search + match run locally with `rustypipe` (YouTube Music Innertube, no third-party server, ~0.3-0.9 s).
+//!   If YouTube Music is unreachable, an Invidious video search is the fallback.
+//! - Audio bytes come through an Invidious relay: YouTube refuses direct stream access past the first chunk
+//!   without a Botguard PO token, which Korz deliberately does not generate.
+//! - Playback: the webview loads `korzstream://localhost/<videoId>`; this module forwards byte ranges with the
+//!   headers the relay expects, so audio starts after the first small chunk.
 
 use std::collections::{HashMap, VecDeque};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use rustypipe::client::RustyPipe;
+use rustypipe::model::TrackType;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::http::{Request, Response};
 use tauri_plugin_http::reqwest;
 
 const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
-/// An instance slower than this is skipped for the next one.
+/// A relay slower than this is skipped for the next one.
 const INSTANCE_TIMEOUT: Duration = Duration::from_secs(5);
-/// Instances tried per request before giving up.
+/// Relays tried per request before giving up.
 const MAX_ATTEMPTS: usize = 4;
+const RANGE_TIMEOUT: Duration = Duration::from_secs(20);
 pub const DURATION_TOLERANCE: i64 = 4;
 /// First chunk is small so playback starts fast; later chunks are larger to limit round trips.
 const FIRST_CHUNK: u64 = 256 * 1024;
 const NEXT_CHUNK: u64 = 1024 * 1024;
-const HEAD_CACHE_SIZE: usize = 6;
+const HEAD_CACHE_SIZE: usize = 8;
 
-const PIPED_SEEDS: &[&str] = &[
-    "https://api.piped.private.coffee",
-    "https://pipedapi.kavin.rocks",
-    "https://pipedapi.adminforge.de",
-    "https://pipedapi.leptons.xyz",
-];
 const INVIDIOUS_SEEDS: &[&str] = &[
     "https://yt.chocolatemoo53.com",
     "https://inv.nadeko.net",
@@ -47,7 +47,7 @@ pub struct Candidate {
     pub title: String,
     pub uploader: String,
     pub duration: i64,
-    /// Came from YouTube Music's "songs" shelf (official audio, not a video upload).
+    /// Official YouTube Music audio track (not a music video upload).
     pub official_song: bool,
 }
 
@@ -170,9 +170,23 @@ pub fn best<'a>(cands: &'a [Candidate], req: &ResolveRequest) -> Option<&'a Cand
         .map(|(_, c)| c)
 }
 
-// ---- Instance pool ------------------------------------------------------------------------
+/// `bytes=START-[END]` → (start, end). Anything else means "from the beginning".
+pub fn parse_range(h: Option<&str>) -> (u64, Option<u64>) {
+    let Some(spec) = h.and_then(|h| h.strip_prefix("bytes=")) else { return (0, None) };
+    let mut it = spec.splitn(2, '-');
+    let start = it.next().and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+    let end = it.next().and_then(|s| s.trim().parse().ok());
+    (start, end)
+}
 
-/// Instances sorted by moving-average latency; a failure counts as a 60 s response.
+/// Total size from an upstream `Content-Range: bytes a-b/TOTAL`.
+pub fn range_total(content_range: &str) -> Option<u64> {
+    content_range.rsplit('/').next()?.trim().parse().ok()
+}
+
+// ---- Relay pool ---------------------------------------------------------------------------
+
+/// Relays sorted by moving-average latency; a failure counts as a 60 s response.
 struct Pool(Mutex<Vec<(String, f64)>>);
 
 impl Pool {
@@ -214,14 +228,14 @@ struct Format {
 struct Head {
     id: String,
     bytes: Vec<u8>,
-    content_range: String,
+    size: u64,
     mime: String,
 }
 
 pub struct Streams {
-    client: reqwest::Client,
-    piped: Pool,
-    invidious: Pool,
+    rp: RustyPipe,
+    http: reqwest::Client,
+    relays: Pool,
     formats: Mutex<HashMap<String, Format>>,
     heads: Mutex<VecDeque<Head>>,
 }
@@ -234,18 +248,29 @@ fn valid_id(id: &str) -> bool {
     id.len() == 11 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
+fn err(e: impl std::fmt::Display) -> String {
+    e.to_string()
+}
+
 impl Streams {
-    pub fn new() -> Self {
+    /// `storage` keeps rustypipe's client data (versions, cache) between launches; `None` = in memory only.
+    pub fn new(storage: Option<PathBuf>) -> Self {
+        // Never run Botguard challenge solvers.
+        let mut builder = RustyPipe::builder().no_botguard();
+        builder = match storage.filter(|d| std::fs::create_dir_all(d).is_ok()) {
+            Some(dir) => builder.storage_dir(dir),
+            None => builder.no_storage(),
+        };
         Self {
-            client: reqwest::Client::builder().user_agent(UA).build().expect("http client"),
-            piped: Pool::new(PIPED_SEEDS),
-            invidious: Pool::new(INVIDIOUS_SEEDS),
+            rp: builder.build().expect("rustypipe client"),
+            http: reqwest::Client::builder().user_agent(UA).build().expect("http client"),
+            relays: Pool::new(INVIDIOUS_SEEDS),
             formats: Mutex::new(HashMap::new()),
             heads: Mutex::new(VecDeque::new()),
         }
     }
 
-    /// Adds instances from the public directories; failures are ignored (seeds remain).
+    /// Adds relays from the public Invidious directory; on failure the seeds remain.
     pub async fn discover(&self) {
         if let Ok(list) = self.json("https://api.invidious.io/instances.json?sort_by=health").await {
             let urls = list.as_array().into_iter().flatten().filter_map(|e| {
@@ -253,63 +278,61 @@ impl Streams {
                 let usable = info.get("api")?.as_bool()? && info.get("type")?.as_str()? == "https";
                 usable.then(|| info.get("uri")?.as_str().map(String::from)).flatten()
             });
-            self.invidious.add(urls.collect::<Vec<_>>());
-        }
-        if let Ok(list) = self.json("https://piped-instances.kavin.rocks/").await {
-            let urls = list.as_array().into_iter().flatten().filter_map(|e| e.get("api_url")?.as_str().map(String::from));
-            self.piped.add(urls.collect::<Vec<_>>());
+            self.relays.add(urls.collect::<Vec<_>>());
         }
     }
 
     async fn json(&self, url: &str) -> Result<Value, String> {
-        let res = self.client.get(url).timeout(INSTANCE_TIMEOUT).send().await.map_err(|e| e.to_string())?;
+        let res = self.http.get(url).timeout(INSTANCE_TIMEOUT).send().await.map_err(err)?;
         if !res.status().is_success() {
             return Err(format!("HTTP {}", res.status()));
         }
-        let body = res.bytes().await.map_err(|e| e.to_string())?;
-        serde_json::from_slice(&body).map_err(|e| e.to_string())
+        serde_json::from_slice(&res.bytes().await.map_err(err)?).map_err(err)
     }
 
-    /// GET `path` on the fastest instance of `pool`, moving to the next one on error or timeout.
-    async fn pool_json(&self, pool: &Pool, path: &str) -> Result<(String, Value), String> {
-        let mut last = String::from("aucune instance disponible");
-        for inst in pool.ordered() {
+    /// GET `path` on the fastest relay, moving to the next one on error or timeout.
+    async fn relay_json(&self, path: &str) -> Result<(String, Value), String> {
+        let mut last = String::from("aucun relais disponible");
+        for inst in self.relays.ordered() {
             let t = Instant::now();
             match self.json(&format!("{inst}{path}")).await {
                 Ok(v) if v.get("error").is_none() => {
-                    pool.record(&inst, Some(t.elapsed().as_millis() as f64));
+                    self.relays.record(&inst, Some(t.elapsed().as_millis() as f64));
                     return Ok((inst, v));
                 }
                 Ok(v) => last = v["error"].to_string(),
                 Err(e) => last = e,
             }
-            pool.record(&inst, None);
+            self.relays.record(&inst, None);
         }
         Err(last)
     }
 
-    async fn piped_search(&self, q: &str) -> Result<Vec<Candidate>, String> {
-        let path = format!("/search?q={}&filter=music_songs", urlencode(q));
-        let (_, v) = self.pool_json(&self.piped, &path).await?;
-        Ok(v["items"]
-            .as_array()
+    /// Local YouTube Music search (no third-party server).
+    async fn music_search(&self, q: &str, videos: bool) -> Result<Vec<Candidate>, String> {
+        let query = self.rp.query();
+        let found = if videos { query.music_search_videos(q).await } else { query.music_search_tracks(q).await };
+        Ok(found
+            .map_err(err)?
+            .items
+            .items
             .into_iter()
-            .flatten()
-            .filter_map(|i| {
+            .filter_map(|t| {
                 Some(Candidate {
-                    id: i["url"].as_str()?.split("v=").nth(1)?.to_string(),
-                    title: i["title"].as_str()?.to_string(),
-                    uploader: i["uploaderName"].as_str().unwrap_or_default().to_string(),
-                    duration: i["duration"].as_i64()?,
-                    official_song: true,
+                    duration: i64::from(t.duration?),
+                    uploader: t.artists.iter().map(|a| a.name.as_str()).collect::<Vec<_>>().join(", "),
+                    official_song: t.track_type == TrackType::Track,
+                    id: t.id,
+                    title: t.name,
                 })
             })
             .collect())
     }
 
-    async fn invidious_search(&self, q: &str) -> Result<Vec<Candidate>, String> {
-        let path = format!("/api/v1/search?q={}&type=video", urlencode(q));
-        let (_, v) = self.pool_json(&self.invidious, &path).await?;
+    /// Fallback when YouTube Music cannot be reached directly.
+    async fn relay_search(&self, q: &str) -> Result<Vec<Candidate>, String> {
+        let url = reqwest::Url::parse_with_params("https://x/api/v1/search", [("q", q), ("type", "video")]).map_err(err)?;
+        let (_, v) = self.relay_json(&format!("/api/v1/search?{}", url.query().unwrap_or_default())).await?;
         Ok(v.as_array()
             .into_iter()
             .flatten()
@@ -331,24 +354,27 @@ impl Streams {
         }
         let main_artist = req.artist.split(',').next().unwrap_or(&req.artist).trim();
         let q = format!("{main_artist} {}", base_title(&req.title));
+        let found = |c: &Candidate| Resolved { video_id: c.id.clone(), title: c.title.clone(), uploader: c.uploader.clone(), duration: c.duration };
 
+        // Official tracks first, then music videos (their audio often differs), then the relay search.
         let mut errors = Vec::new();
-        for songs in [true, false] {
-            let found = if songs { self.piped_search(&q).await } else { self.invidious_search(&q).await };
-            match found {
+        for videos in [false, true] {
+            match self.music_search(&q, videos).await {
                 Ok(cands) => {
                     if let Some(c) = best(&cands, req) {
-                        return Ok(Resolved { video_id: c.id.clone(), title: c.title.clone(), uploader: c.uploader.clone(), duration: c.duration });
+                        return Ok(found(c));
                     }
                 }
                 Err(e) => errors.push(e),
             }
         }
-        Err(if errors.len() == 2 {
-            format!("Serveurs de flux injoignables ({})", errors.join(" ; "))
-        } else {
-            "Aucune version officielle à la bonne durée".into()
-        })
+        if !errors.is_empty() {
+            if let Some(c) = self.relay_search(&q).await.ok().as_deref().and_then(|cands| best(cands, req)) {
+                return Ok(found(c));
+            }
+            return Err(format!("YouTube Music injoignable ({})", errors.join(" ; ")));
+        }
+        Err("Aucune version officielle à la bonne durée".into())
     }
 
     async fn format(&self, id: &str, refresh: bool) -> Result<Format, String> {
@@ -357,14 +383,14 @@ impl Streams {
                 return Ok(f.clone());
             }
         }
-        let (inst, v) = self.pool_json(&self.invidious, &format!("/api/v1/videos/{id}?local=true")).await?;
+        let (inst, v) = self.relay_json(&format!("/api/v1/videos/{id}?local=true")).await?;
         let audio = v["adaptiveFormats"]
             .as_array()
             .into_iter()
             .flatten()
             .filter(|f| f["type"].as_str().is_some_and(|t| t.starts_with("audio/")))
             .max_by_key(|f| f["bitrate"].as_u64().or_else(|| f["bitrate"].as_str()?.parse().ok()).unwrap_or(0))
-            .ok_or("Aucun flux audio pour cette vidéo")?;
+            .ok_or("Aucun flux audio pour ce titre")?;
         let raw = audio["url"].as_str().ok_or("URL de flux manquante")?;
         let url = if raw.starts_with('/') { format!("{inst}{raw}") } else { raw.to_string() };
         let expires = url.split(['?', '&']).find_map(|p| p.strip_prefix("expire=")?.parse().ok()).unwrap_or(now() + 3600);
@@ -373,45 +399,40 @@ impl Streams {
         Ok(f)
     }
 
-    async fn fetch_range(&self, id: &str, start: u64, end: u64) -> Result<(u16, Vec<u8>, String, String), String> {
+    /// Returns (status, body, total size, mime).
+    async fn fetch_range(&self, id: &str, start: u64, end: u64) -> Result<(u16, Vec<u8>, u64, String), String> {
         for refresh in [false, true] {
             let f = self.format(id, refresh).await?;
             let res = self
-                .client
+                .http
                 .get(&f.url)
                 .header("Range", format!("bytes={start}-{end}"))
                 .header("Referer", &f.referer)
-                .timeout(Duration::from_secs(15))
+                .timeout(RANGE_TIMEOUT)
                 .send()
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(err)?;
             let status = res.status().as_u16();
-            // Signed URLs expire or get pinned to another instance: refetch the format once.
+            // Signed URLs expire or get pinned to another relay: fetch the format again once.
             if matches!(status, 403 | 410) && !refresh {
                 continue;
             }
-            let upstream = res.headers().get("content-range").and_then(|v| v.to_str().ok()).unwrap_or_default().to_string();
-            let body = res.bytes().await.map_err(|e| e.to_string())?.to_vec();
-            // Some instances echo the requested end even past EOF; Chromium rejects that (MEDIA_ERR on WebM
-            // cue probing), so the header is rebuilt from the bytes actually received.
-            let range = match upstream.rsplit('/').next().and_then(|t| t.parse::<u64>().ok()) {
-                Some(total) if !body.is_empty() => format!("bytes {start}-{}/{total}", start + body.len() as u64 - 1),
-                _ => upstream,
-            };
-            return Ok((status, body, range, f.mime));
+            let total = res.headers().get("content-range").and_then(|v| v.to_str().ok()).and_then(range_total).unwrap_or(0);
+            let body = res.bytes().await.map_err(err)?.to_vec();
+            return Ok((status, body, total, f.mime));
         }
-        Err("Flux refusé par le serveur".into())
+        Err("Flux refusé par le relais".into())
     }
 
-    /// Warms format + first chunk so the next track starts without a network round trip.
+    /// Warms format + first chunk so the track starts without a network round trip.
     pub async fn prefetch(&self, id: &str) -> Result<(), String> {
         if self.heads.lock().unwrap().iter().any(|h| h.id == id) {
             return Ok(());
         }
-        let (status, bytes, content_range, mime) = self.fetch_range(id, 0, FIRST_CHUNK - 1).await?;
-        if status == 206 {
+        let (status, bytes, size, mime) = self.fetch_range(id, 0, FIRST_CHUNK - 1).await?;
+        if status == 206 && size > 0 {
             let mut heads = self.heads.lock().unwrap();
-            heads.push_back(Head { id: id.into(), bytes, content_range, mime });
+            heads.push_back(Head { id: id.into(), bytes, size, mime });
             while heads.len() > HEAD_CACHE_SIZE {
                 heads.pop_front();
             }
@@ -419,7 +440,7 @@ impl Streams {
         Ok(())
     }
 
-    /// `korzstream://localhost/<videoId>` handler: forwards byte ranges with the headers the instance expects.
+    /// `korzstream://localhost/<videoId>` handler: answers the webview's byte-range requests.
     pub async fn serve(&self, req: Request<Vec<u8>>) -> Response<Vec<u8>> {
         let id = req.uri().path().trim_matches('/').to_string();
         if !valid_id(&id) {
@@ -430,11 +451,11 @@ impl Streams {
 
         if start == 0 && end < FIRST_CHUNK {
             if let Some(h) = self.heads.lock().unwrap().iter().find(|h| h.id == id) {
-                return partial(h.bytes.clone(), &h.content_range, &h.mime);
+                return partial(h.bytes.clone(), 0, h.size, &h.mime);
             }
         }
         match self.fetch_range(&id, start, end).await {
-            Ok((206, body, range, mime)) => partial(body, &range, &mime),
+            Ok((206, body, size, mime)) if size > 0 && !body.is_empty() => partial(body, start, size, &mime),
             Ok((status, body, _, mime)) => Response::builder()
                 .status(status)
                 .header("Content-Type", mime)
@@ -445,11 +466,14 @@ impl Streams {
     }
 }
 
-fn partial(body: Vec<u8>, content_range: &str, mime: &str) -> Response<Vec<u8>> {
+/// 206 with a Content-Range built from the bytes actually returned. Some relays echo the requested end even
+/// past EOF; Chromium rejects that (MEDIA_ERR while probing WebM cues), so the upstream header is not reused.
+fn partial(body: Vec<u8>, start: u64, size: u64, mime: &str) -> Response<Vec<u8>> {
+    let end = start + body.len() as u64 - 1;
     Response::builder()
         .status(206)
         .header("Content-Type", mime)
-        .header("Content-Range", content_range)
+        .header("Content-Range", format!("bytes {start}-{end}/{size}"))
         .header("Accept-Ranges", "bytes")
         .header("Content-Length", body.len())
         .header("Access-Control-Allow-Origin", "*")
@@ -461,30 +485,12 @@ fn plain(status: u16, msg: &str) -> Response<Vec<u8>> {
     Response::builder().status(status).body(msg.as_bytes().to_vec()).expect("static response")
 }
 
-/// `bytes=START-[END]` → (start, end). Anything else means "from the beginning".
-pub fn parse_range(h: Option<&str>) -> (u64, Option<u64>) {
-    let Some(spec) = h.and_then(|h| h.strip_prefix("bytes=")) else { return (0, None) };
-    let mut it = spec.splitn(2, '-');
-    let start = it.next().and_then(|s| s.trim().parse().ok()).unwrap_or(0);
-    let end = it.next().and_then(|s| s.trim().parse().ok());
-    (start, end)
-}
-
-fn urlencode(s: &str) -> String {
-    s.bytes()
-        .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
-            _ => format!("%{b:02X}"),
-        })
-        .collect()
-}
-
 // ---- Tauri commands -----------------------------------------------------------------------
 
 #[tauri::command]
 pub async fn resolve_stream(state: tauri::State<'_, Arc<Streams>>, req: ResolveRequest) -> Result<Resolved, String> {
     let resolved = state.resolve(&req).await?;
-    // Warm the format URL so the first range request does not pay for it.
+    // Warm the stream URL so the first range request does not pay for it.
     let s = state.inner().clone();
     let id = resolved.video_id.clone();
     tauri::async_runtime::spawn(async move {
@@ -526,13 +532,13 @@ mod tests {
     #[test]
     fn duration_tolerance_is_four_seconds() {
         let r = req("Avie", "Bina", 135);
-        assert!(score(&cand("a0000000000", "Bina", "AVIE & Delil", 139, true), &r).is_some());
-        assert!(score(&cand("a0000000000", "Bina", "AVIE & Delil", 140, true), &r).is_none());
+        assert!(score(&cand("a0000000000", "Bina", "AVIE, Delil", 139, true), &r).is_some());
+        assert!(score(&cand("a0000000000", "Bina", "AVIE, Delil", 140, true), &r).is_none());
     }
 
     #[test]
     fn blocked_words_allowed_when_requested() {
-        let live = cand("l0000000000", "Live Forever", "Oasis - Topic", 276, false);
+        let live = cand("l0000000000", "Live Forever", "Oasis", 276, true);
         assert!(score(&live, &req("Oasis", "Live Forever", 276)).is_some());
         let concert = cand("c0000000000", "Wonderwall (Live)", "Oasis", 260, true);
         assert!(score(&concert, &req("Oasis", "Wonderwall", 259)).is_none());
@@ -553,61 +559,71 @@ mod tests {
         assert_eq!(parse_range(Some("bytes=100-")), (100, None));
         assert_eq!(parse_range(Some("bytes=0-99")), (0, Some(99)));
         assert_eq!(parse_range(None), (0, None));
+        assert_eq!(range_total("bytes 2359296-3407871/2889263"), Some(2889263));
     }
 
-    /// End to end against live services: Deezer metadata → resolve → first audio bytes.
-    /// `cargo test live_ -- --ignored --nocapture`
+    #[test]
+    fn content_range_never_past_eof() {
+        let r = partial(vec![0; 10], 90, 100, "audio/webm");
+        assert_eq!(r.headers()["content-range"], "bytes 90-99/100");
+    }
+
+    async fn deezer(artist: &str, title: &str) -> ResolveRequest {
+        let url = reqwest::Url::parse_with_params("https://api.deezer.com/search", &[("q", format!("{artist} {title}")), ("limit", "1".into())]).unwrap();
+        let v: Value = serde_json::from_slice(&reqwest::get(url).await.unwrap().bytes().await.unwrap()).unwrap();
+        let t = &v["data"][0];
+        ResolveRequest {
+            artist: t["artist"]["name"].as_str().unwrap().into(),
+            title: t["title"].as_str().unwrap().into(),
+            duration: t["duration"].as_i64().unwrap(),
+            query: None,
+            video_id: None,
+        }
+    }
+
+    /// End to end against live services: Deezer → local YouTube Music match → relay audio bytes.
+    /// `cargo test live_ -- --ignored --nocapture --test-threads=1`
     #[tokio::test]
     #[ignore]
     async fn live_full_stream_for_real_artists() {
-        let s = Streams::new();
-        for (artist, title) in [("Werenoi", "Solitaire"), ("Avie", "Bina"), ("Werenoi", "Chemin d'or")] {
-            let q = urlencode(&format!("{artist} {title}"));
-            let dz = s.json(&format!("https://api.deezer.com/search?q={q}&limit=1")).await.expect("deezer");
-            let t = &dz["data"][0];
-            let r = ResolveRequest {
-                artist: t["artist"]["name"].as_str().unwrap().into(),
-                title: t["title"].as_str().unwrap().into(),
-                duration: t["duration"].as_i64().unwrap(),
-                query: None,
-                video_id: None,
-            };
-            let res = s.resolve(&r).await.unwrap_or_else(|e| panic!("{artist} - {title}: {e}"));
-            assert!((res.duration - r.duration).abs() <= DURATION_TOLERANCE);
+        let s = Streams::new(None);
+        for (artist, title) in [("Werenoi", "Solitaire"), ("Avie", "Bina"), ("Avie", "LUNA&MONICA"), ("Werenoi", "Chemin d'or")] {
+            let r = deezer(artist, title).await;
             let t0 = Instant::now();
-            let (status, bytes, range, mime) = s.fetch_range(&res.video_id, 0, FIRST_CHUNK - 1).await.expect("range");
+            let res = s.resolve(&r).await.unwrap_or_else(|e| panic!("{artist} - {title}: {e}"));
+            let t_resolve = t0.elapsed();
+            assert!((res.duration - r.duration).abs() <= DURATION_TOLERANCE);
+            let (status, bytes, size, mime) = s.fetch_range(&res.video_id, 0, FIRST_CHUNK - 1).await.expect("range");
             println!(
-                "{} - {} ({}s) -> {} \"{}\" by {} ({}s) | {status} {mime} {} bytes in {:?} | {range}",
-                r.artist, r.title, r.duration, res.video_id, res.title, res.uploader, res.duration, bytes.len(), t0.elapsed()
+                "{} - {} ({}s) -> {} \"{}\" by {} ({}s) | resolve {t_resolve:?}, first chunk at {:?} | {status} {mime} {} B of {size}",
+                r.artist, r.title, r.duration, res.video_id, res.title, res.uploader, res.duration, t0.elapsed(), bytes.len()
             );
             assert_eq!(status, 206);
-            assert!(range.contains('/'), "total size known for seeking");
         }
     }
-    /// Sequential range requests as the webview issues them; prints throughput per chunk.
-    /// `cargo test live_serve -- --ignored --nocapture`
+
+    /// Whole file through `serve`, as the webview requests it, plus a cue probe near the end.
     #[tokio::test]
     #[ignore]
-    async fn live_serve_sequential_ranges() {
-        let s = Streams::new();
-        let r = ResolveRequest { artist: "Avie".into(), title: "LUNA&MONICA".into(), duration: 159, query: None, video_id: None };
-        let res = s.resolve(&r).await.expect("resolve");
-        println!("match {} \"{}\" by {} ({}s)", res.video_id, res.title, res.uploader, res.duration);
-        let mut next = 0u64;
-        for i in 0..4 {
-            let range = if i == 0 { "bytes=0-".to_string() } else { format!("bytes={next}-") };
-            let req = Request::builder().uri(format!("korzstream://localhost/{}", res.video_id)).header("range", &range).body(Vec::new()).unwrap();
-            let t0 = Instant::now();
-            let resp = s.serve(req).await;
-            let cr = resp.headers().get("content-range").map(|v| v.to_str().unwrap().to_string()).unwrap_or_default();
-            let len = resp.body().len();
-            println!("{range} -> {} {len} B in {:?} ({:.0} KB/s) | {cr}", resp.status(), t0.elapsed(), len as f64 / 1024.0 / t0.elapsed().as_secs_f64());
-            assert_eq!(resp.status(), 206, "body: {}", String::from_utf8_lossy(&resp.body()[..len.min(200)]));
-            let (span, total) = cr.trim_start_matches("bytes ").split_once('/').unwrap();
-            let end: u64 = span.split_once('-').unwrap().1.parse().unwrap();
-            assert!(end < total.parse::<u64>().unwrap(), "Content-Range past EOF: {cr}");
-            assert_eq!(end + 1 - next, len as u64, "Content-Range matches body");
-            next += len as u64;
+    async fn live_serve_whole_file() {
+        let s = Streams::new(None);
+        let res = s.resolve(&deezer("Avie", "LUNA&MONICA").await).await.expect("resolve");
+        let (mut next, mut size, mut got) = (0u64, u64::MAX, 0u64);
+        let get = |range: String| {
+            let req = Request::builder().uri(format!("korzstream://localhost/{}", res.video_id)).header("range", range).body(Vec::new()).unwrap();
+            s.serve(req)
+        };
+        while next < size {
+            let resp = get(if next == 0 { "bytes=0-".into() } else { format!("bytes={next}-") }).await;
+            assert_eq!(resp.status(), 206, "{}", String::from_utf8_lossy(resp.body()));
+            let cr = resp.headers()["content-range"].to_str().unwrap().to_string();
+            size = range_total(&cr).unwrap();
+            got += resp.body().len() as u64;
+            next += resp.body().len() as u64;
         }
+        assert_eq!(got, size, "every byte of the full track was served");
+        let probe = get(format!("bytes={}-", size - 4096)).await;
+        assert_eq!(probe.headers()["content-range"], format!("bytes {}-{}/{size}", size - 4096, size - 1));
+        println!("{} \"{}\": {size} bytes served in full", res.video_id, res.title);
     }
 }

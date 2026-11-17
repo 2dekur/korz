@@ -18,13 +18,10 @@ fn hardware_acceleration_enabled(app: &tauri::App) -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let streams = Arc::new(stream::Streams::new());
-    let protocol_streams = streams.clone();
     tauri::Builder::default()
-        .manage(streams)
-        // `korzstream://localhost/<videoId>`: range-proxied full-length audio (see stream.rs).
-        .register_asynchronous_uri_scheme_protocol("korzstream", move |_ctx, request, responder| {
-            let s = protocol_streams.clone();
+        // `korzstream://localhost/<videoId>`: range-served full-length audio (see stream.rs).
+        .register_asynchronous_uri_scheme_protocol("korzstream", |ctx, request, responder| {
+            let s = ctx.app_handle().state::<Arc<stream::Streams>>().inner().clone();
             tauri::async_runtime::spawn(async move { responder.respond(s.serve(request).await) });
         })
         .invoke_handler(tauri::generate_handler![stream::resolve_stream, stream::prefetch_stream])
@@ -38,8 +35,11 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let s = app.state::<Arc<stream::Streams>>().inner().clone();
-            tauri::async_runtime::spawn(async move { s.discover().await });
+            // Managed before the window exists, so the protocol and commands always find it.
+            let cache = app.path().app_cache_dir().ok().map(|d| d.join("rustypipe"));
+            let streams = Arc::new(stream::Streams::new(cache));
+            app.manage(streams.clone());
+            tauri::async_runtime::spawn(async move { streams.discover().await });
 
             let hw_accel = hardware_acceleration_enabled(app);
             let config = app
