@@ -5,6 +5,7 @@ import { artists } from "@/services/catalog";
 import { useNavigation, useRoute } from "@/store/navigation";
 import { useSettings } from "@/store/settings";
 import { Artwork, initials } from "@/components/ui/Artwork";
+import { Logo } from "@/components/ui/Logo";
 
 const NAV: { route: Route; label: string; icon: LucideIcon }[] = [
   { route: { name: "home" }, label: "Accueil", icon: House },
@@ -20,11 +21,8 @@ export function Sidebar() {
   return (
     <aside className="flex min-h-0 flex-col border-r border-line bg-bg">
       <div className="flex h-16 items-center gap-2.5 px-6">
-        <span className="relative flex size-6 items-center justify-center">
-          <span className="absolute inset-0 rounded-full bg-accent/20" />
-          <span className="size-2.5 rounded-full bg-accent" />
-        </span>
-        <span className="font-display text-[17px] font-bold tracking-[-0.02em]">Resonance</span>
+        <Logo className="size-7" />
+        <span className="font-display text-[17px] font-bold tracking-[-0.02em]">Korz</span>
       </div>
 
       <nav className="flex flex-col gap-0.5 px-3" aria-label="Navigation principale">

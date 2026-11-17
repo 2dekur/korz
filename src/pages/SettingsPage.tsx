@@ -115,7 +115,7 @@ export function SettingsPage() {
             checked={hardwareAcceleration}
             onCheckedChange={(v) => {
               update({ hardwareAcceleration: v });
-              toast("Redémarrage requis", { description: "Relancez Resonance pour appliquer ce changement." });
+              toast("Redémarrage requis", { description: "Relancez Korz pour appliquer ce changement." });
             }}
           />
         </Row>
@@ -125,7 +125,7 @@ export function SettingsPage() {
       </Section>
 
       <p className="mt-10 text-center text-[12px] text-faint">
-        Resonance {pkg.version} · {system}
+        Korz {pkg.version} · {system}
       </p>
     </div>
   );
