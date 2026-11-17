@@ -10,7 +10,7 @@ interface NavigationState {
 }
 
 const sameRoute = (a: Route, b: Route) =>
-  a.name === b.name && (a.name !== "artist" || (b.name === "artist" && a.id === b.id));
+  a.name === b.name && (!("id" in a) || ("id" in b && a.id === b.id));
 
 /** In-memory router: switching view is a state change, nothing is fetched or remounted outside the page. */
 export const useNavigation = create<NavigationState>((set, get) => ({

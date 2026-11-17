@@ -1,4 +1,4 @@
-import type { Album, Artist, ArtistPageData, HomeData, SearchResults, Track } from "@/types";
+import type { Album, AlbumPageData, Artist, ArtistPageData, HomeData, SearchResults, Track } from "@/types";
 import { buildSuggestions, cleanArtists, cleanTracks, pickTopArtist, previewExpired, relevantArtists } from "@/lib/music";
 import { getJson } from "./http";
 
@@ -190,6 +190,41 @@ export async function getArtistPage(id: string, signal?: AbortSignal): Promise<A
           type: "Album",
         })),
     ),
+  };
+}
+
+interface DzAlbumFull extends DzAlbum {
+  artist: DzArtist;
+  contributors?: DzArtist[];
+  label?: string;
+  tracks: { data: DzTrack[] };
+}
+
+export async function getAlbumPage(id: string, signal?: AbortSignal): Promise<AlbumPageData> {
+  const [source, raw] = [id.slice(0, 2), id.slice(3)];
+  if (!/^\d+$/.test(raw)) throw new Error("Identifiant d'album invalide");
+
+  if (source === "dz") {
+    const a = await dz<DzAlbumFull>(`/album/${raw}`, signal);
+    // Album track lists omit the album object: attach it so covers and links work everywhere.
+    const albumRef: DzAlbum = { id: a.id, title: a.title, cover_medium: a.cover_medium, cover_xl: a.cover_xl };
+    return {
+      album: { id, title: a.title, cover: a.cover_medium, year: a.release_date?.slice(0, 4), type: RECORD_TYPES[a.record_type ?? ""] ?? "Album" },
+      coverLarge: a.cover_xl,
+      artists: (a.contributors?.length ? a.contributors : [a.artist]).map((x) => ({ id: `dz-${x.id}`, name: x.name })),
+      label: a.label,
+      tracks: a.tracks.data.filter(playable).map((t) => dzTrack({ ...t, album: albumRef })),
+    };
+  }
+
+  const { results } = await getJson<{ results: ItItem[] }>(`${IT}/lookup?id=${raw}&entity=song`, signal);
+  const head = results.find((r) => r.wrapperType === "collection");
+  if (!head) throw new Error("Album introuvable");
+  return {
+    album: { id, title: head.collectionName ?? "", cover: itArt(head.artworkUrl100, 250), year: head.releaseDate?.slice(0, 4), type: "Album" },
+    coverLarge: itArt(head.artworkUrl100, 1000),
+    artists: [{ id: `it-${head.artistId}`, name: head.artistName }],
+    tracks: results.filter((r) => r.wrapperType === "track" && r.previewUrl).map(itTrack),
   };
 }
 

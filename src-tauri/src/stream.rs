@@ -26,9 +26,11 @@ const INSTANCE_TIMEOUT: Duration = Duration::from_secs(5);
 /// Relays tried per request before giving up.
 const MAX_ATTEMPTS: usize = 4;
 const RANGE_TIMEOUT: Duration = Duration::from_secs(20);
+/// The first audio bytes must arrive this fast from a relay, otherwise the next relay is tried at once.
+const FIRST_BYTE_TIMEOUT: Duration = Duration::from_millis(1500);
 pub const DURATION_TOLERANCE: i64 = 4;
 /// First chunk is small so playback starts fast; later chunks are larger to limit round trips.
-const FIRST_CHUNK: u64 = 256 * 1024;
+const FIRST_CHUNK: u64 = 128 * 1024;
 const NEXT_CHUNK: u64 = 1024 * 1024;
 const HEAD_CACHE_SIZE: usize = 8;
 
@@ -221,7 +223,8 @@ impl Pool {
 struct Format {
     url: String,
     mime: String,
-    referer: String,
+    /// Relay base URL; also sent as Referer, which relays require.
+    relay: String,
     expires: u64,
 }
 
@@ -394,34 +397,55 @@ impl Streams {
         let raw = audio["url"].as_str().ok_or("URL de flux manquante")?;
         let url = if raw.starts_with('/') { format!("{inst}{raw}") } else { raw.to_string() };
         let expires = url.split(['?', '&']).find_map(|p| p.strip_prefix("expire=")?.parse().ok()).unwrap_or(now() + 3600);
-        let f = Format { url, mime: audio["type"].as_str().unwrap_or("audio/mp4").into(), referer: format!("{inst}/"), expires };
+        let f = Format { url, mime: audio["type"].as_str().unwrap_or("audio/mp4").into(), relay: inst, expires };
         self.formats.lock().unwrap().insert(id.into(), f.clone());
         Ok(f)
     }
 
-    /// Returns (status, body, total size, mime).
+    /// Returns (status, body, total size, mime). A relay that errors, refuses, or (for the first chunk) takes
+    /// longer than `FIRST_BYTE_TIMEOUT` is demoted and the next relay is tried immediately.
     async fn fetch_range(&self, id: &str, start: u64, end: u64) -> Result<(u16, Vec<u8>, u64, String), String> {
-        for refresh in [false, true] {
-            let f = self.format(id, refresh).await?;
-            let res = self
+        let timeout = if start == 0 { FIRST_BYTE_TIMEOUT } else { RANGE_TIMEOUT };
+        let mut last = String::from("aucun relais disponible");
+        for attempt in 0..MAX_ATTEMPTS {
+            // Retries always take a fresh URL, from whichever relay now ranks first.
+            let f = self.format(id, attempt > 0).await?;
+            let t = Instant::now();
+            let sent = self
                 .http
                 .get(&f.url)
                 .header("Range", format!("bytes={start}-{end}"))
-                .header("Referer", &f.referer)
-                .timeout(RANGE_TIMEOUT)
+                .header("Referer", format!("{}/", f.relay))
+                .timeout(timeout)
                 .send()
-                .await
-                .map_err(err)?;
+                .await;
+            let res = match sent {
+                Ok(r) => r,
+                Err(e) => {
+                    self.relays.record(&f.relay, None);
+                    last = err(e);
+                    continue;
+                }
+            };
             let status = res.status().as_u16();
-            // Signed URLs expire or get pinned to another relay: fetch the format again once.
-            if matches!(status, 403 | 410) && !refresh {
+            if matches!(status, 403 | 410 | 429) || status >= 500 {
+                self.relays.record(&f.relay, None);
+                last = format!("HTTP {status}");
                 continue;
             }
             let total = res.headers().get("content-range").and_then(|v| v.to_str().ok()).and_then(range_total).unwrap_or(0);
-            let body = res.bytes().await.map_err(err)?.to_vec();
+            let body = match res.bytes().await {
+                Ok(b) => b.to_vec(),
+                Err(e) => {
+                    self.relays.record(&f.relay, None);
+                    last = err(e);
+                    continue;
+                }
+            };
+            self.relays.record(&f.relay, Some(t.elapsed().as_millis() as f64));
             return Ok((status, body, total, f.mime));
         }
-        Err("Flux refusé par le relais".into())
+        Err(format!("Flux indisponible ({last})"))
     }
 
     /// Warms format + first chunk so the track starts without a network round trip.
@@ -563,6 +587,15 @@ mod tests {
     }
 
     #[test]
+    fn failing_relay_is_demoted_behind_healthy_ones() {
+        let pool = Pool::new(&["https://a", "https://b", "https://c"]);
+        assert_eq!(pool.ordered()[0], "https://a");
+        pool.record("https://a", None); // timeout / 403 / error
+        pool.record("https://b", Some(300.0));
+        assert_eq!(pool.ordered(), ["https://b", "https://c", "https://a"]);
+    }
+
+    #[test]
     fn content_range_never_past_eof() {
         let r = partial(vec![0; 10], 90, 100, "audio/webm");
         assert_eq!(r.headers()["content-range"], "bytes 90-99/100");
@@ -625,5 +658,43 @@ mod tests {
         let probe = get(format!("bytes={}-", size - 4096)).await;
         assert_eq!(probe.headers()["content-range"], format!("bytes {}-{}/{size}", size - 4096, size - 1));
         println!("{} \"{}\": {size} bytes served in full", res.video_id, res.title);
+    }
+    /// Match + first-byte check for every track of a Deezer album: `KORZ_ALBUM=<deezer id>` (default: Diamant Noir).
+    #[tokio::test]
+    #[ignore]
+    async fn live_album_coverage() {
+        let s = Streams::new(None);
+        let album = std::env::var("KORZ_ALBUM").unwrap_or_else(|_| "dz-search:Werenoi Diamant Noir".into());
+        let id = if let Some(q) = album.strip_prefix("dz-search:") {
+            let url = reqwest::Url::parse_with_params("https://api.deezer.com/search/album", &[("q", q)]).unwrap();
+            let v: Value = serde_json::from_slice(&reqwest::get(url).await.unwrap().bytes().await.unwrap()).unwrap();
+            v["data"][0]["id"].to_string()
+        } else {
+            album
+        };
+        let v: Value = serde_json::from_slice(&reqwest::get(format!("https://api.deezer.com/album/{id}/tracks?limit=100")).await.unwrap().bytes().await.unwrap()).unwrap();
+        let (mut ok, mut total) = (0, 0);
+        for t in v["data"].as_array().unwrap() {
+            total += 1;
+            let r = ResolveRequest {
+                artist: t["artist"]["name"].as_str().unwrap().into(),
+                title: t["title"].as_str().unwrap().into(),
+                duration: t["duration"].as_i64().unwrap(),
+                query: None,
+                video_id: None,
+            };
+            let t0 = Instant::now();
+            match s.resolve(&r).await {
+                Ok(res) => match s.fetch_range(&res.video_id, 0, FIRST_CHUNK - 1).await {
+                    Ok((206, ..)) => {
+                        ok += 1;
+                        println!("OK   {} ({}s) -> {} ({}s) in {:?}", r.title, r.duration, res.video_id, res.duration, t0.elapsed());
+                    }
+                    other => println!("FLUX {} -> {}: {:?}", r.title, res.video_id, other.map(|o| o.0)),
+                },
+                Err(e) => println!("MISS {} ({}s): {e}", r.title, r.duration),
+            }
+        }
+        println!("{ok}/{total} titres en version complète");
     }
 }

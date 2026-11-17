@@ -9,7 +9,7 @@ export function useHoverPrefetch() {
   return (track: Track) => ({
     onPointerEnter: () => {
       clearTimeout(timer.current);
-      timer.current = setTimeout(() => prefetchSource(track), 250);
+      timer.current = setTimeout(() => prefetchSource(track), 120);
     },
     onPointerLeave: () => clearTimeout(timer.current),
   });

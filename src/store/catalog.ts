@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { create } from "zustand";
-import type { ArtistPageData, HomeData, SearchResults } from "@/types";
-import { getArtistPage, getHome, searchCatalog } from "@/services/musicApi";
+import type { AlbumPageData, ArtistPageData, HomeData, SearchResults } from "@/types";
+import { getAlbumPage, getArtistPage, getHome, searchCatalog } from "@/services/musicApi";
 import { normalize } from "@/lib/format";
 
 export type Entry<T> = { status: "loading" } | { status: "ready"; data: T } | { status: "error"; error: string };
@@ -9,11 +9,12 @@ export type Entry<T> = { status: "loading" } | { status: "ready"; data: T } | { 
 interface Buckets {
   searches: Record<string, Entry<SearchResults>>;
   artists: Record<string, Entry<ArtistPageData>>;
+  albums: Record<string, Entry<AlbumPageData>>;
   home: Record<string, Entry<HomeData>>;
 }
 
 /** In-memory cache for every remote read: revisiting a query or artist is instant and costs no request. */
-export const useCatalog = create<Buckets>(() => ({ searches: {}, artists: {}, home: {} }));
+export const useCatalog = create<Buckets>(() => ({ searches: {}, artists: {}, albums: {}, home: {} }));
 
 // Callers pair each bucket with its matching fetcher; the cast keeps this helper bucket-agnostic.
 function ensure(bucket: keyof Buckets, key: string, fetcher: () => Promise<unknown>) {
@@ -31,6 +32,12 @@ function ensure(bucket: keyof Buckets, key: string, fetcher: () => Promise<unkno
 export const searchKey = (query: string) => normalize(query.trim()).replace(/\s+/g, " ");
 
 export const prefetchArtist = (id: string) => ensure("artists", id, () => getArtistPage(id));
+export const prefetchAlbum = (id: string) => ensure("albums", id, () => getAlbumPage(id));
+
+export function useAlbumPage(id: string) {
+  useEffect(() => prefetchAlbum(id), [id]);
+  return useCatalog((s) => s.albums[id]);
+}
 
 export function useSearchResults(query: string): Entry<SearchResults> | undefined {
   const key = searchKey(query);

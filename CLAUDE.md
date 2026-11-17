@@ -1,7 +1,7 @@
 # Korz — mémoire projet
 
 Lecteur de streaming musical desktop. Tauri v2 + React 19 + TypeScript strict + Tailwind v4.
-Version actuelle : **v0.0.4** (voir `ROADMAP.md`). Dépôt git, branche `main`.
+Version actuelle : **v0.0.5** (voir `ROADMAP.md`). Dépôt git, branche `main`.
 
 ## Règles d'or (non négociables)
 
@@ -26,7 +26,9 @@ Version actuelle : **v0.0.4** (voir `ROADMAP.md`). Dépôt git, branche `main`.
 Lecture complète (moteur hybride, `src-tauri/src/stream.rs`) :
 - **Recherche + correspondance en local** avec `rustypipe` (YouTube Music Innertube depuis le PC de l'utilisateur, aucun serveur tiers, 0,3-0,9 s). Repli : recherche via relais Invidious si YouTube Music est injoignable.
 - **Flux audio via relais Invidious** servi par plages sur `korzstream://localhost/<videoId>` (en-têtes navigateur, relais triés par latence, bascule, annuaire public au démarrage). YouTube refuse l'accès direct au flux au-delà du premier segment sans jeton Botguard (PO token).
-- **Interdit : ne jamais générer de PO token ni lancer de solveur Botguard** (`rustypipe-botguard` ou équivalent) : c'est du contournement de détection anti-bot. `RustyPipe::builder().no_botguard()` est obligatoire.
+- **Bascule** : le premier segment (128 Ko) doit arriver en 1,5 s depuis un relais, sinon ce relais est rétrogradé et le suivant est essayé aussitôt ; côté front, une source qui échoue avant le premier son passe la main à la suivante (local → Lecteur Global → extrait 30 s en dernier recours).
+- **Interdit : ne jamais générer de PO token ni lancer de solveur Botguard** (`rustypipe-botguard` ou équivalent), **ni choisir un client YouTube parce qu'il échappe au PO token** (ex. `yt-dlp --extractor-args youtube:player_client=android_vr`) : c'est du contournement de détection anti-bot. `RustyPipe::builder().no_botguard()` est obligatoire.
+- Interface : le moteur s'appelle « Lecteur Global » ; ne jamais afficher « Invidious » dans l'UI.
 
 Permissions : `src-tauri/capabilities/default.json` (http limité à `api.deezer.com` et `itunes.apple.com`, `fs:allow-read-dir`, `fs:allow-stat`) + `desktop.json` (window-state). Asset protocol activé avec scope vide : seuls les dossiers choisis via le dialogue sont accessibles (le dialogue ajoute le scope, persisted-scope le conserve).
 
@@ -45,25 +47,26 @@ src/
   services/
     http.ts             getJson : plugin-http dans Tauri, proxy Vite (/proxy/*) dans le navigateur
     musicApi.ts         Deezer (principal) + iTunes (repli) : métadonnées, page artiste, charts ; playableSrc() = extrait 30 s
-    audioProviders.ts   AudioProvider : local → flux complet (invoke Rust) → extrait (si activé) ; cache trackId→videoId persistant, prefetch
+    audioProviders.ts   AudioProvider : local → Lecteur Global (invoke Rust) → extrait (dernier recours) ; candidateProviders(), cache trackId→videoId persistant, prefetch
     localFiles.ts       dialogue dossier + scan récursif (plugin-fs)
     audio.ts            UNIQUE <audio> partagé
     persist.ts          readKey/writeKey : plugin-store en Tauri, localStorage (préfixe korz:) en navigateur
   store/
-    catalog.ts          cache mémoire des lectures distantes (searches / artists / home), hooks useX
+    catalog.ts          cache mémoire des lectures distantes (searches / artists / albums / home), hooks useX
     search.ts           requête courante + demande de focus
     library.ts          titres likés, artistes suivis, dossiers, fichiers locaux (persistés)
     navigation.ts       routeur mémoire avec historique
-    player.ts           file, lecture (src résolue async), position rAF, volume, Media Session
+    player.ts           file d'attente (aléatoire, répétition, ajout/retrait/saut), bascule de sources, pré-chargement du suivant, position rAF, volume, Media Session
+    ui.ts               panneaux (file d'attente ouverte/fermée)
     settings.ts         préférences + sanitize()
-  hooks/                useDebounce, useHoverPrefetch (survol + premiers titres visibles → pré-résolution)
+  hooks/                useDebounce, useHoverPrefetch (survol 120 ms + 3 premiers titres visibles → pré-résolution)
   components/
     ui/                 Slider, Switch, Tooltip, IconButton, Artwork (image + dégradé), Badges, Logo, States
     layout/             AppShell, Sidebar (abonnements), TopBar (+ SearchBox), ScrollContext
     search/SearchBox    barre de recherche + menu flottant (combobox ARIA, flèches/Entrée/Échap)
     track/              TrackList (virtualisée), CompactTrackRow, ArtistCard/Grid, ArtistLinks, LikeButton, FollowButton
-    player/PlayerBar    lecteur persistant
-  pages/                Home (charts), Search, Library (onglets), Artist, Settings
+    player/             PlayerBar (aléatoire, répétition, file), QueuePanel (En cours / À suivre)
+  pages/                Home (charts), Search, Library (onglets), Artist (discographie cliquable), Album, Settings
 src-tauri/src/lib.rs    plugins (persisted-scope après fs), protocole korzstream, commandes stream, fenêtre `main`
 src-tauri/src/stream.rs moteur hybride : recherche rustypipe locale, correspondance stricte (±4 s, sans remix/live/cover/clip…), relais Invidious, cache formats + premiers segments, proxy Range
 ```

@@ -46,6 +46,14 @@ export interface ArtistPageData {
   albums: Album[];
 }
 
+export interface AlbumPageData {
+  album: Album;
+  coverLarge?: string;
+  artists: ArtistRef[];
+  label?: string;
+  tracks: Track[];
+}
+
 export interface SearchResults {
   tracks: Track[];
   artists: Artist[];
@@ -69,7 +77,7 @@ export interface Profile {
 export interface AudioSources {
   /** Full-length audio resolved by the Rust backend (YouTube Music via Piped/Invidious). */
   fullStream: boolean;
-  /** Deezer 30 s previews when no full stream is found. Off by default. */
+  /** Deezer 30 s previews, only when every full-length source failed. On by default. */
   previewFallback: boolean;
 }
 
@@ -85,4 +93,5 @@ export type Route =
   | { name: "search" }
   | { name: "library" }
   | { name: "settings" }
-  | { name: "artist"; id: string };
+  | { name: "artist"; id: string }
+  | { name: "album"; id: string };

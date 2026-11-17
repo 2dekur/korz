@@ -1,6 +1,6 @@
 [package]
 name = "korz"
-version = "0.0.4"
+version = "0.0.5"
 description = "Korz — lecteur musical desktop"
 authors = ["you"]
 edition = "2024"

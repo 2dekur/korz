@@ -8,6 +8,7 @@ import { SearchPage } from "@/pages/SearchPage";
 import { LibraryPage } from "@/pages/LibraryPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { ArtistPage } from "@/pages/ArtistPage";
+import { AlbumPage } from "@/pages/AlbumPage";
 
 function CurrentPage() {
   const route = useRoute();
@@ -22,6 +23,8 @@ function CurrentPage() {
       return <SettingsPage />;
     case "artist":
       return <ArtistPage id={route.id} />;
+    case "album":
+      return <AlbumPage id={route.id} />;
   }
 }
 

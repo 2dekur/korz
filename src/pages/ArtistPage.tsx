@@ -1,6 +1,7 @@
 import { Pause, Play } from "lucide-react";
 import { usePrefetchTracks } from "@/hooks/useHoverPrefetch";
-import { useArtistPage, retry } from "@/store/catalog";
+import { useArtistPage, retry, prefetchAlbum } from "@/store/catalog";
+import { useNavigation } from "@/store/navigation";
 import { usePlayer, useCurrentTrack } from "@/store/player";
 import { useLibrary } from "@/store/library";
 import { Artwork } from "@/components/ui/Artwork";
@@ -21,6 +22,7 @@ export function ArtistPage({ id }: { id: string }) {
   const isPlaying = usePlayer((s) => s.isPlaying);
   const queue = usePlayer((s) => s.queue);
   const current = useCurrentTrack();
+  const navigate = useNavigation((s) => s.navigate);
 
   if (entry?.status === "error")
     return (
@@ -93,13 +95,19 @@ export function ArtistPage({ id }: { id: string }) {
             <h2 className="mb-4 font-display text-[22px] font-bold tracking-[-0.02em]">Discographie</h2>
             <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-x-2 gap-y-4">
               {data.albums.map((al) => (
-                <div key={al.id} className="rounded-lg p-3">
+                <button
+                  key={al.id}
+                  type="button"
+                  onPointerEnter={() => prefetchAlbum(al.id)}
+                  onClick={() => navigate({ name: "album", id: al.id })}
+                  className="rounded-lg p-3 text-left transition-colors duration-150 hover:bg-white/[0.04]"
+                >
                   <Artwork src={al.cover} seed={al.id} className="aspect-square w-full" />
                   <div className="mt-3 truncate text-[14px] font-semibold" title={al.title}>
                     {al.title}
                   </div>
                   <div className="text-[13px] text-muted">{[al.year, al.type].filter(Boolean).join(" · ")}</div>
-                </div>
+                </button>
               ))}
             </div>
           </section>

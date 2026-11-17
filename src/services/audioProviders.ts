@@ -81,19 +81,9 @@ export const previewProvider: AudioProvider = {
 
 const PROVIDERS = [localProvider, fullStreamProvider, previewProvider];
 
-/** First provider that can play the track and succeeds; the first error explains a total failure. */
-export async function resolveSource(track: Track): Promise<string> {
-  let first: unknown;
-  for (const p of PROVIDERS) {
-    if (!p.canPlay(track)) continue;
-    try {
-      return await p.resolve(track);
-    } catch (err) {
-      first ??= err;
-    }
-  }
-  if (first) throw first instanceof Error ? first : new Error(String(first));
-  throw new Error(isTauri() ? "Aucune source audio activée pour ce titre" : "La lecture complète n'existe que dans l'application desktop");
+/** Providers able to play the track, in fallback order; the player tries them one after another. */
+export function candidateProviders(track: Track): AudioProvider[] {
+  return PROVIDERS.filter((p) => p.canPlay(track));
 }
 
 /** Background warm-up (next track, hovered row): match + first audio chunk, errors ignored. */

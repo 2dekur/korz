@@ -4,7 +4,7 @@ import { readKey, writeKey } from "@/services/persist";
 
 export const DEFAULT_SETTINGS: Settings = {
   audioQuality: "high",
-  sources: { fullStream: true, previewFallback: false },
+  sources: { fullStream: true, previewFallback: true },
   hardwareAcceleration: true,
   profile: { displayName: "Auditeur", hue: 262 },
 };

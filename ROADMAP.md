@@ -1,8 +1,17 @@
 # Roadmap — Korz
 
-**Version actuelle : v0.0.4** (validée : `npm run build`, `npm test`, `cargo check`, `cargo test` dont tests réseau, lecture native Werenoi/Avie)
+**Version actuelle : v0.0.5** (validée : `npm run build`, `npm test`, `cargo check`, `cargo test` dont tests réseau, lecture native Werenoi/Avie)
 
 ## Historique
+
+### v0.0.5 — Albums, file d'attente, démarrage et bascule rapides
+- [x] Page album (Deezer `/album/{id}`, repli iTunes) : pochette, type, année, titres, durée totale, label ; ouverte depuis la discographie et la colonne Album.
+- [x] File d'attente : panneau « En cours / À suivre », saut, retrait, ajout depuis les listes, aléatoire (ordre d'origine restauré), répétition (tout / titre).
+- [x] Pré-chargement : 3 premiers résultats (recherche, menu, album, artiste), survol ≥ 120 ms, titre suivant à chaque changement de file, amorce de 128 Ko en mémoire.
+- [x] Bascule : 1,5 s max pour le premier octet par relais, relais suivant aussitôt ; extrait 30 s seulement si aucune source complète ne démarre.
+- [x] Paramètres : « Lecteur Global » et « Extraits en dernier recours » (activé par défaut), sans jargon.
+- [x] Refusé : moteur `yt-dlp` `player_client=android_vr` (choisi pour échapper au PO token = contournement anti-bot).
+- [x] Testé en natif : album Werenoi « Diamant Noir » (3:50 complet, démarrage < 2 s), file + aléatoire. Couverture de l'album : 15/18 en version complète (1 sans correspondance ±4 s, 2 refusés par le seul relais actif → extrait).
 
 ### v0.0.4 — Moteur hybride
 - [x] Recherche et correspondance en local avec `rustypipe` (YouTube Music direct, plus de Piped) : 0,3-0,9 s au lieu de 0,6-4 s.
@@ -42,8 +51,8 @@ Limites connues v0.0.3 :
 - Lecture complète dépendante de 1-2 instances publiques Piped/Invidious ; usage personnel uniquement (CGU YouTube).
 - Fichiers locaux : métadonnées tirées du nom de fichier ; albums non cliquables.
 
-## Prochaine version : v0.0.5 — Albums et file d'attente
-- [ ] Page album (Deezer `/album/{id}`) depuis la discographie et les titres.
-- [ ] File d'attente visible, aléatoire, répétition ; raccourcis clavier (Espace, ←/→, Ctrl+K).
+## Prochaine version : v0.0.6 — Robustesse du flux et confort
+- [ ] Indicateur discret de disponibilité du Lecteur Global dans Paramètres > Sources audio.
+- [ ] Raccourcis clavier (Espace, ←/→, Ctrl+K).
 - [ ] Tags et pochettes des fichiers locaux (`lofty`).
-- [ ] Indicateur discret de l'état des relais dans Paramètres > Sources audio.
+- [ ] Persistance de la file d'attente entre deux lancements.

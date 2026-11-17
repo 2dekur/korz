@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Loader2, Pause, Play, SkipBack, SkipForward, Volume, Volume1, Volume2, VolumeX } from "lucide-react";
+import { ListMusic, Loader2, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume, Volume1, Volume2, VolumeX } from "lucide-react";
+import { useUi } from "@/store/ui";
 import { formatTime } from "@/lib/format";
 import { usePlayer, useCurrentTrack } from "@/store/player";
 import { Slider } from "@/components/ui/Slider";
@@ -11,7 +12,7 @@ import { LikeButton } from "@/components/track/LikeButton";
 
 export function PlayerBar() {
   return (
-    <footer className="col-span-2 grid h-[88px] grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center gap-6 border-t border-line bg-surface px-4">
+    <footer className="col-span-full grid h-[88px] grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center gap-6 border-t border-line bg-surface px-4">
       <NowPlaying />
       <Transport />
       <VolumeControl />
@@ -38,10 +39,18 @@ function Transport() {
   const isPlaying = usePlayer((s) => s.isPlaying);
   const resolving = usePlayer((s) => s.resolving);
   const hasTrack = usePlayer((s) => s.index >= 0);
-  const { toggle, next, prev } = usePlayer.getState();
+  const shuffle = usePlayer((s) => s.shuffle);
+  const repeat = usePlayer((s) => s.repeat);
+  const { toggle, next, prev, toggleShuffle, cycleRepeat } = usePlayer.getState();
+  const repeatLabel = repeat === "off" ? "Répéter" : repeat === "all" ? "Répéter le titre" : "Désactiver la répétition";
   return (
     <div className="flex flex-col items-center gap-1.5">
       <div className="flex items-center gap-4">
+        <Tooltip label={shuffle ? "Désactiver la lecture aléatoire" : "Lecture aléatoire"}>
+          <IconButton label={shuffle ? "Désactiver la lecture aléatoire" : "Lecture aléatoire"} active={shuffle} aria-pressed={shuffle} onClick={toggleShuffle}>
+            <Shuffle className="size-4" />
+          </IconButton>
+        </Tooltip>
         <Tooltip label="Précédent">
           <IconButton label="Précédent" onClick={prev} disabled={!hasTrack}>
             <SkipBack className="size-[18px] fill-current" />
@@ -67,6 +76,11 @@ function Transport() {
         <Tooltip label="Suivant">
           <IconButton label="Suivant" onClick={next} disabled={!hasTrack}>
             <SkipForward className="size-[18px] fill-current" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip label={repeatLabel}>
+          <IconButton label={repeatLabel} active={repeat !== "off"} onClick={cycleRepeat}>
+            {repeat === "one" ? <Repeat1 className="size-4" /> : <Repeat className="size-4" />}
           </IconButton>
         </Tooltip>
       </div>
@@ -110,6 +124,7 @@ function VolumeControl() {
   const Icon = level === 0 ? VolumeX : level < 0.33 ? Volume : level < 0.66 ? Volume1 : Volume2;
   return (
     <div className="flex items-center justify-end gap-2">
+      <QueueToggle />
       <Tooltip label={muted ? "Réactiver le son" : "Couper le son"}>
         <IconButton label={muted ? "Réactiver le son" : "Couper le son"} onClick={toggleMute}>
           <Icon className="size-[18px]" />
@@ -117,5 +132,16 @@ function VolumeControl() {
       </Tooltip>
       <Slider label="Volume" value={level} max={1} onChange={setVolume} className="w-28" />
     </div>
+  );
+}
+
+function QueueToggle() {
+  const open = useUi((s) => s.queueOpen);
+  return (
+    <Tooltip label="File d'attente">
+      <IconButton label="File d'attente" active={open} aria-pressed={open} onClick={useUi.getState().toggleQueue} className="mr-2">
+        <ListMusic className="size-[18px]" />
+      </IconButton>
+    </Tooltip>
   );
 }

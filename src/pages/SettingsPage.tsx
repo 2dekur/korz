@@ -106,8 +106,8 @@ export function SettingsPage() {
 
       <Section title="Sources audio">
         <Row
-          title="Lecture complète"
-          description="Associe chaque titre du catalogue à sa piste officielle YouTube Music (même artiste, durée à ±4 s, sans remix ni live) et la diffuse en entier."
+          title="Lecteur Global"
+          description="Lecture intégrale de chaque titre : la version officielle est trouvée sur votre ordinateur (même artiste, durée à ±4 s, sans remix ni live), puis diffusée via le réseau de relais. Si un relais tarde plus de 1,5 s, le suivant prend le relais."
           htmlFor="src-full"
         >
           <Switch id="src-full" checked={sources.fullStream} onCheckedChange={(v) => update({ sources: { ...sources, fullStream: v } })} />
@@ -116,8 +116,8 @@ export function SettingsPage() {
           <span className="rounded-full bg-white/[0.06] px-3 py-1 text-[12px] font-medium text-muted">Toujours actif</span>
         </Row>
         <Row
-          title="Extraits Deezer en secours"
-          description="Joue l'extrait de 30 s quand aucune version complète n'est trouvée. Désactivé par défaut."
+          title="Extraits en dernier recours"
+          description="Joue l'extrait de 30 s uniquement si aucune version complète n'a pu démarrer."
           htmlFor="src-preview"
         >
           <Switch
