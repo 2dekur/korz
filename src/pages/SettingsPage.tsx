@@ -23,7 +23,7 @@ const HUES = [262, 210, 188, 150, 84, 42, 16, 330];
 const system = isTauri() ? `${platform()} ${osVersion()}` : "navigateur (aperçu web)";
 
 export function SettingsPage() {
-  const { audioQuality, hardwareAcceleration, profile, update, updateProfile } = useSettings();
+  const { audioQuality, sources, hardwareAcceleration, profile, update, updateProfile } = useSettings();
   const [name, setName] = useState(profile.displayName);
 
   const commitName = () => {
@@ -104,6 +104,30 @@ export function SettingsPage() {
         </div>
       </Section>
 
+      <Section title="Sources audio">
+        <Row
+          title="Lecture complète"
+          description="Associe chaque titre du catalogue à sa piste officielle YouTube Music (même artiste, durée à ±4 s, sans remix ni live) et la diffuse en entier."
+          htmlFor="src-full"
+        >
+          <Switch id="src-full" checked={sources.fullStream} onCheckedChange={(v) => update({ sources: { ...sources, fullStream: v } })} />
+        </Row>
+        <Row title="Fichiers locaux" description="Dossiers ajoutés dans la Bibliothèque. Toujours prioritaires pour leurs propres titres.">
+          <span className="rounded-full bg-white/[0.06] px-3 py-1 text-[12px] font-medium text-muted">Toujours actif</span>
+        </Row>
+        <Row
+          title="Extraits Deezer en secours"
+          description="Joue l'extrait de 30 s quand aucune version complète n'est trouvée. Désactivé par défaut."
+          htmlFor="src-preview"
+        >
+          <Switch
+            id="src-preview"
+            checked={sources.previewFallback}
+            onCheckedChange={(v) => update({ sources: { ...sources, previewFallback: v } })}
+          />
+        </Row>
+      </Section>
+
       <Section title="Système">
         <Row
           title="Accélération matérielle"
@@ -168,7 +192,7 @@ function ResetDialog({ onReset }: { onReset: () => void }) {
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-raised p-6 shadow-[0_24px_64px_rgb(0_0_0/0.6)] ring-1 ring-line data-[state=open]:animate-[pop-in_180ms_cubic-bezier(0.22,1,0.36,1)]">
           <Dialog.Title className="font-display text-[18px] font-bold">Réinitialiser les préférences ?</Dialog.Title>
           <Dialog.Description className="mt-2 text-[13px] leading-relaxed text-muted">
-            Qualité audio, accélération matérielle et profil local reviendront à leurs valeurs par défaut.
+            Qualité audio, sources audio, accélération matérielle et profil local reviendront à leurs valeurs par défaut.
           </Dialog.Description>
           <div className="mt-6 flex justify-end gap-2">
             <Dialog.Close asChild>

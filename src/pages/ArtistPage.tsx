@@ -1,4 +1,5 @@
 import { Pause, Play } from "lucide-react";
+import { usePrefetchTracks } from "@/hooks/useHoverPrefetch";
 import { useArtistPage, retry } from "@/store/catalog";
 import { usePlayer, useCurrentTrack } from "@/store/player";
 import { useLibrary } from "@/store/library";
@@ -12,6 +13,7 @@ const fansFmt = new Intl.NumberFormat("fr-FR");
 
 export function ArtistPage({ id }: { id: string }) {
   const entry = useArtistPage(id);
+  usePrefetchTracks(entry?.status === "ready" ? entry.data.top : undefined);
   // A followed artist renders its header instantly from the library while the rest loads.
   const known = useLibrary((s) => s.followed.find((a) => a.id === id));
   const playQueue = usePlayer((s) => s.playQueue);

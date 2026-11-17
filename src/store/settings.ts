@@ -4,6 +4,7 @@ import { readKey, writeKey } from "@/services/persist";
 
 export const DEFAULT_SETTINGS: Settings = {
   audioQuality: "high",
+  sources: { fullStream: true, previewFallback: false },
   hardwareAcceleration: true,
   profile: { displayName: "Auditeur", hue: 262 },
 };
@@ -15,11 +16,16 @@ function sanitize(raw: unknown): Settings {
   const d = DEFAULT_SETTINGS;
   if (typeof raw !== "object" || raw === null) return d;
   const r = raw as Partial<Record<keyof Settings, unknown>>;
+  const src = (typeof r.sources === "object" && r.sources !== null ? r.sources : {}) as Record<string, unknown>;
   const p = (typeof r.profile === "object" && r.profile !== null ? r.profile : {}) as Partial<
     Record<keyof Profile, unknown>
   >;
   return {
     audioQuality: QUALITIES.includes(r.audioQuality as AudioQuality) ? (r.audioQuality as AudioQuality) : d.audioQuality,
+    sources: {
+      fullStream: typeof src.fullStream === "boolean" ? src.fullStream : d.sources.fullStream,
+      previewFallback: typeof src.previewFallback === "boolean" ? src.previewFallback : d.sources.previewFallback,
+    },
     hardwareAcceleration: typeof r.hardwareAcceleration === "boolean" ? r.hardwareAcceleration : d.hardwareAcceleration,
     profile: {
       displayName:
@@ -36,8 +42,9 @@ interface SettingsState extends Settings {
   hydrate: () => Promise<void>;
 }
 
-const pick = ({ audioQuality, hardwareAcceleration, profile }: Settings): Settings => ({
+const pick = ({ audioQuality, sources, hardwareAcceleration, profile }: Settings): Settings => ({
   audioQuality,
+  sources,
   hardwareAcceleration,
   profile,
 });

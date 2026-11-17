@@ -1,4 +1,5 @@
 import { Play } from "lucide-react";
+import { usePrefetchTracks } from "@/hooks/useHoverPrefetch";
 import { useHome, retry } from "@/store/catalog";
 import { usePlayer, useCurrentTrack } from "@/store/player";
 import { useSettings } from "@/store/settings";
@@ -20,6 +21,7 @@ export function HomePage() {
   const playQueue = usePlayer((s) => s.playQueue);
   const current = useCurrentTrack();
   const picks = home?.status === "ready" ? home.data.tracks.slice(0, 6) : [];
+  usePrefetchTracks(picks, 2);
 
   return (
     <div className="px-8 pb-12 pt-20">

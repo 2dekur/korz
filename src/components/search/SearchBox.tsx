@@ -4,6 +4,7 @@ import { ArrowUpRight, Loader2, Search, X } from "lucide-react";
 import type { Artist, SearchResults, Track } from "@/types";
 import { cn } from "@/lib/cn";
 import { useDebounce } from "@/hooks/useDebounce";
+import { usePrefetchTracks } from "@/hooks/useHoverPrefetch";
 import { useSearch } from "@/store/search";
 import { retry, searchKey, useSearchResults, prefetchArtist } from "@/store/catalog";
 import { useNavigation, useRoute } from "@/store/navigation";
@@ -38,6 +39,7 @@ export function SearchBox() {
   if (entry?.status === "ready") last.current = entry.data;
   const hasQuery = searchKey(query) !== "";
   const results = entry?.status === "ready" ? entry.data : hasQuery ? last.current : undefined;
+  usePrefetchTracks(entry?.status === "ready" ? entry.data.tracks : undefined, 2);
   const loading = hasQuery && (entry?.status !== "ready" || debounced !== query);
 
   useEffect(() => {

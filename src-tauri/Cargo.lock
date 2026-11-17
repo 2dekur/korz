@@ -2134,7 +2134,7 @@ dependencies = [
 
 [[package]]
 name = "korz"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "serde",
  "serde_json",
@@ -2148,6 +2148,7 @@ dependencies = [
  "tauri-plugin-persisted-scope",
  "tauri-plugin-store",
  "tauri-plugin-window-state",
+ "tokio",
 ]
 
 [[package]]

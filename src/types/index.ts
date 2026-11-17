@@ -66,8 +66,16 @@ export interface Profile {
   hue: number;
 }
 
+export interface AudioSources {
+  /** Full-length audio resolved by the Rust backend (YouTube Music via Piped/Invidious). */
+  fullStream: boolean;
+  /** Deezer 30 s previews when no full stream is found. Off by default. */
+  previewFallback: boolean;
+}
+
 export interface Settings {
   audioQuality: AudioQuality;
+  sources: AudioSources;
   hardwareAcceleration: boolean;
   profile: Profile;
 }

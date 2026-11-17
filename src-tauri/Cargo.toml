@@ -1,6 +1,6 @@
 [package]
 name = "korz"
-version = "0.0.2"
+version = "0.0.3"
 description = "Korz — lecteur musical desktop"
 authors = ["you"]
 edition = "2024"
@@ -29,6 +29,9 @@ tauri-plugin-os = "2"
 tauri-plugin-http = "2"
 tauri-plugin-persisted-scope = { version = "2", features = ["protocol-asset"] }
 
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

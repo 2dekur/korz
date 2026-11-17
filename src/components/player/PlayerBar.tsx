@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pause, Play, SkipBack, SkipForward, Volume, Volume1, Volume2, VolumeX } from "lucide-react";
+import { Loader2, Pause, Play, SkipBack, SkipForward, Volume, Volume1, Volume2, VolumeX } from "lucide-react";
 import { formatTime } from "@/lib/format";
 import { usePlayer, useCurrentTrack } from "@/store/player";
 import { Slider } from "@/components/ui/Slider";
@@ -26,16 +26,7 @@ function NowPlaying() {
     <div className="flex min-w-0 items-center gap-3">
       <Artwork src={track.cover} seed={track.id} className="size-14" />
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-[14px] font-medium text-fg">{track.title}</span>
-          {track.source !== "local" && (
-            <Tooltip label="Le catalogue public ne fournit que des extraits de 30 secondes">
-              <span className="shrink-0 rounded-[4px] bg-white/[0.08] px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Extrait
-              </span>
-            </Tooltip>
-          )}
-        </div>
+        <div className="truncate text-[14px] font-medium text-fg">{track.title}</div>
         <ArtistLinks artists={track.artists} className="text-[12px]" />
       </div>
       <LikeButton track={track} />
@@ -45,6 +36,7 @@ function NowPlaying() {
 
 function Transport() {
   const isPlaying = usePlayer((s) => s.isPlaying);
+  const resolving = usePlayer((s) => s.resolving);
   const hasTrack = usePlayer((s) => s.index >= 0);
   const { toggle, next, prev } = usePlayer.getState();
   return (
@@ -63,7 +55,13 @@ function Transport() {
             disabled={!hasTrack}
             className="flex size-9 items-center justify-center rounded-full bg-fg text-bg transition-transform duration-150 hover:scale-[1.06] active:scale-95 disabled:opacity-30"
           >
-            {isPlaying ? <Pause className="size-4 fill-current" /> : <Play className="ml-0.5 size-4 fill-current" />}
+            {resolving ? (
+              <Loader2 className="size-4 animate-spin" aria-label="Chargement du flux" />
+            ) : isPlaying ? (
+              <Pause className="size-4 fill-current" />
+            ) : (
+              <Play className="ml-0.5 size-4 fill-current" />
+            )}
           </button>
         </Tooltip>
         <Tooltip label="Suivant">

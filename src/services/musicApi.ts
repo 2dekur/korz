@@ -1,4 +1,3 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
 import type { Album, Artist, ArtistPageData, HomeData, SearchResults, Track } from "@/types";
 import { buildSuggestions, cleanArtists, cleanTracks, pickTopArtist, previewExpired, relevantArtists } from "@/lib/music";
 import { getJson } from "./http";
@@ -199,9 +198,8 @@ export async function getHome(signal?: AbortSignal): Promise<HomeData> {
   return { tracks: chart.tracks.data.filter(playable).map(dzTrack), artists: chart.artists.data.map(dzArtist) };
 }
 
-/** URL the <audio> element can load. Deezer previews are signed and expire, so stale ones are re-fetched. */
+/** 30 s preview URL (optional fallback source). Deezer previews are signed and expire, so stale ones are re-fetched. */
 export async function playableSrc(track: Track): Promise<string> {
-  if (track.source === "local") return convertFileSrc(track.src);
   if (track.source === "deezer" && previewExpired(track.src)) {
     const fresh = await dz<DzTrack>(`/track/${track.id.slice(3)}`);
     return fresh.preview;

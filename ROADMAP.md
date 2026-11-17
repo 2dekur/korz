@@ -1,8 +1,17 @@
 # Roadmap — Korz
 
-**Version actuelle : v0.0.2** (validée : `npm run build`, `npm test`, `cargo check`, `npm run tauri dev`)
+**Version actuelle : v0.0.3** (validée : `npm run build`, `npm test`, `cargo check`, `cargo test` dont tests réseau, lecture native Werenoi/Avie)
 
 ## Historique
+
+### v0.0.3 — Lecture complète
+- [x] Badge « Extrait » supprimé ; Deezer ne sert plus que de base de métadonnées.
+- [x] `FullStreamResolver` Rust (`stream.rs`) : recherche Piped `music_songs` (pistes officielles YouTube Music), repli Invidious ; instances triées par latence, bascule après 5 s, annuaires publics au démarrage.
+- [x] Correspondance stricte : piste officielle prioritaire, artiste principal obligatoire, ≥ 70 % des mots du titre, exclusion remix/slowed/reverb/nightcore/8d/karaoke/cover/live/clip/sped up/instrumental sauf si demandé, durée Deezer ±4 s.
+- [x] Streaming direct par plages (protocole `korzstream://`), premier segment 256 Ko puis 1 Mo, `Content-Range` réécrit (corrige l'erreur média à 0:01 sur les WebM).
+- [x] Cache : trackId→videoId persistant, formats et premiers segments en mémoire ; pré-résolution du titre suivant, des titres survolés et des premiers titres affichés.
+- [x] `AudioProvider` : local, flux complet, extraits Deezer (désactivés par défaut) ; section « Sources audio » dans les Paramètres.
+- [x] Testé en natif : Werenoi (3:12 complet), Avie « LUNA&MONICA » (2:39 complet), enchaînement suivant < 1,5 s.
 
 ### v0.0.2 — Vrai catalogue, recherche style Spotify, bibliothèque locale
 - [x] Projet déplacé sur un chemin court (`E:\Korz`), dépôt git initialisé (commit v0.0.1).
@@ -20,15 +29,12 @@
 - [x] Tauri v2 + React + TS strict + Tailwind v4, plugins store/fs/dialog/os/window-state.
 - [x] Layout sombre, lecteur persistant (Radix Slider), navigation instantanée, liste virtualisée, paramètres persistés, toggle accélération matérielle (Rust).
 
-Limites connues v0.0.2 :
-- Catalogue public = extraits de 30 s (badge « Extrait » dans le lecteur).
-- Fichiers locaux : métadonnées tirées du nom de fichier (`Artiste - Titre.ext`) et du dossier ; pas encore de lecture des tags ni des pochettes intégrées.
-- Albums affichés mais pas encore cliquables.
+Limites connues v0.0.3 :
+- Lecture complète dépendante de 1-2 instances publiques Piped/Invidious ; usage personnel uniquement (CGU YouTube).
+- Fichiers locaux : métadonnées tirées du nom de fichier ; albums non cliquables.
 
-## Prochaine version : v0.0.3 — Albums, tags et file d'attente
+## Prochaine version : v0.0.4 — Moteur autonome, albums, file d'attente
+- [ ] Extraction YouTube Music directement en Rust (crate `rustypipe`) : plus de dépendance aux instances publiques.
 - [ ] Page album (Deezer `/album/{id}`) depuis la discographie et les titres.
-- [ ] Lecture des tags (titre, artiste, album, durée, pochette) des fichiers locaux côté Rust (`lofty`).
-- [ ] File d'attente visible (panneau latéral), aléatoire et répétition.
-- [ ] Raccourcis clavier globaux (Espace, ←/→, Ctrl+K pour la recherche).
-- [ ] Test de charge : 10 000 titres locaux virtualisés, défilement mesuré.
-- [ ] Barre de titre personnalisée (décorations natives désactivées) cohérente avec le thème.
+- [ ] File d'attente visible, aléatoire, répétition ; raccourcis clavier (Espace, ←/→, Ctrl+K).
+- [ ] Tags et pochettes des fichiers locaux (`lofty`).

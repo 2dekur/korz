@@ -10,6 +10,7 @@ import { Artwork } from "@/components/ui/Artwork";
 import { ExplicitBadge } from "@/components/ui/Badges";
 import { ArtistLinks } from "./ArtistLinks";
 import { LikeButton } from "./LikeButton";
+import { useHoverPrefetch } from "@/hooks/useHoverPrefetch";
 
 const ROW_HEIGHT = 56;
 const GRID = "grid grid-cols-[36px_minmax(0,1.5fr)_minmax(0,1fr)_32px_56px] items-center gap-4 px-4";
@@ -23,6 +24,7 @@ export function TrackList({ tracks, showAlbum = true }: { tracks: Track[]; showA
   const isPlaying = usePlayer((s) => s.isPlaying);
   const durations = usePlayer((s) => s.durations);
   const playQueue = usePlayer((s) => s.playQueue);
+  const hover = useHoverPrefetch();
 
   useLayoutEffect(() => {
     const list = listRef.current;
@@ -58,6 +60,7 @@ export function TrackList({ tracks, showAlbum = true }: { tracks: Track[]; showA
               key={track.id}
               role="row"
               aria-selected={active}
+              {...hover(track)}
               onDoubleClick={() => playQueue(tracks, item.index)}
               className={cn(GRID, "group absolute inset-x-0 rounded-md transition-colors duration-100 hover:bg-white/[0.045]", active && "bg-white/[0.035]")}
               style={{ height: ROW_HEIGHT, transform: `translateY(${item.start - offset}px)` }}

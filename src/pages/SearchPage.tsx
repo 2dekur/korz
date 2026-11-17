@@ -1,4 +1,5 @@
 import { Play, Search } from "lucide-react";
+import { usePrefetchTracks } from "@/hooks/useHoverPrefetch";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useSearch } from "@/store/search";
 import { retry, searchKey, useSearchResults, prefetchArtist } from "@/store/catalog";
@@ -17,6 +18,7 @@ export function SearchPage() {
   const query = useSearch((s) => s.query);
   const debounced = useDebounce(query, 200);
   const entry = useSearchResults(debounced);
+  usePrefetchTracks(entry?.status === "ready" ? entry.data.tracks : undefined);
   const navigate = useNavigation((s) => s.navigate);
   const playQueue = usePlayer((s) => s.playQueue);
 

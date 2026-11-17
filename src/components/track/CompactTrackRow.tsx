@@ -8,6 +8,7 @@ import { Artwork } from "@/components/ui/Artwork";
 import { ExplicitBadge } from "@/components/ui/Badges";
 import { ArtistLinks } from "./ArtistLinks";
 import { LikeButton } from "./LikeButton";
+import { useHoverPrefetch } from "@/hooks/useHoverPrefetch";
 
 type Props = HTMLAttributes<HTMLDivElement> & { track: Track; active?: boolean };
 
@@ -15,8 +16,10 @@ type Props = HTMLAttributes<HTMLDivElement> & { track: Track; active?: boolean }
 export function CompactTrackRow({ track, active, className, ...props }: Props) {
   const current = useCurrentTrack()?.id === track.id;
   const playing = usePlayer((s) => s.isPlaying) && current;
+  const hover = useHoverPrefetch();
   return (
     <div
+      {...hover(track)}
       {...props}
       className={cn(
         "group flex h-14 cursor-default items-center gap-3 rounded-md px-2 transition-colors duration-100 hover:bg-white/[0.06]",

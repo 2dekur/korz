@@ -3,12 +3,14 @@ import { toast } from "sonner";
 import type { Track } from "@/types";
 import { audio } from "@/services/audio";
 import { readKey, writeKey } from "@/services/persist";
-import { playableSrc } from "@/services/musicApi";
+import { prefetchSource, resolveSource } from "@/services/audioProviders";
 
 interface PlayerState {
   queue: Track[];
   index: number;
   isPlaying: boolean;
+  /** A full stream is being matched/fetched for the current track. */
+  resolving: boolean;
   position: number;
   duration: number;
   volume: number;
@@ -39,16 +41,21 @@ export const usePlayer = create<PlayerState>((set, get) => {
     if (!track) return;
     const mine = ++token;
     audio.pause();
-    set({ index, position: 0, duration: 0 });
+    set({ index, position: 0, duration: 0, resolving: true });
     try {
-      const src = await playableSrc(track);
+      const src = await resolveSource(track);
       if (mine !== token) return; // a newer track was requested meanwhile
       audio.src = src;
       void play();
+      prefetchSource(get().queue[index + 1]);
     } catch (err) {
       if (mine !== token) return;
       console.error(err);
-      toast.error("Lecture impossible", { description: `« ${track.title} » est indisponible.` });
+      toast.error(`« ${track.title} » introuvable en version complète`, {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      if (mine === token) set({ resolving: false });
     }
   };
 
@@ -56,6 +63,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     queue: [],
     index: -1,
     isPlaying: false,
+    resolving: false,
     position: 0,
     duration: 0,
     volume: 0.8,
@@ -140,7 +148,11 @@ audio.addEventListener("error", () => {
   if (!audio.getAttribute("src")) return;
   const track = usePlayer.getState().queue[usePlayer.getState().index];
   usePlayer.setState({ isPlaying: false });
-  toast.error("Lecture impossible", { description: track ? `« ${track.title} » est indisponible.` : undefined });
+  const code = audio.error?.code;
+  console.error("audio element error", code, audio.error?.message);
+  toast.error("Lecture interrompue", {
+    description: track ? `« ${track.title} » : flux illisible (code ${code ?? "?"}).` : undefined,
+  });
 });
 
 // Persist volume, debounced so dragging the slider does not spam the store.

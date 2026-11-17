@@ -7,9 +7,10 @@ import App from "./App";
 import { useSettings } from "@/store/settings";
 import { usePlayer } from "@/store/player";
 import { useLibrary } from "@/store/library";
+import { hydrateStreamIds } from "@/services/audioProviders";
 
 // Local store reads take a few ms; awaiting them avoids a flash of default profile/volume/library.
-await Promise.all([useSettings.getState().hydrate(), usePlayer.getState().hydrate(), useLibrary.getState().hydrate()]);
+await Promise.all([useSettings.getState().hydrate(), usePlayer.getState().hydrate(), useLibrary.getState().hydrate(), hydrateStreamIds()]);
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
