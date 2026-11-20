@@ -38,7 +38,7 @@ Permissions : `src-tauri/capabilities/default.json` (http limité à `api.deezer
 - **Clé privée de signature : `C:\Users\alpha\.tauri\korz.key` (sans mot de passe). Jamais dans le dépôt, jamais lue ni affichée.** La perdre = plus aucune mise à jour possible pour les installations existantes.
 - Vérification 3 s après le lancement (`store/updates.ts`) ; popup `UpdateToast` sauf si la version a été fermée (`ignoredUpdates` persisté) ; Paramètres > Mises à jour permet toujours d'installer.
 - Notes de version = section `### vX.Y.Z` de `ROADMAP.md` (`scripts/release-notes.mjs`) : la rédiger pour l'utilisateur final.
-- Publication : tag `vX.Y.Z` → `.github/workflows/release.yml` (tauri-action) si les secrets `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD` existent ; sinon build local signé + `gh release create` avec `latest.json`.
+- Publication : tag `vX.Y.Z` → `.github/workflows/release.yml` (tauri-action) si les secrets `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD` existent ; sinon build local signé (`TAURI_SIGNING_PRIVATE_KEY=<chemin de la clé> npm run tauri build`, ~18 min à froid, 2-4 min ensuite), `node scripts/latest-json.mjs X.Y.Z`, puis `gh release create vX.Y.Z --target main` avec l'installeur NSIS, le MSI et `latest.json`.
 - **Un dépôt privé bloque l'auto-update** : les fichiers de release d'un dépôt privé ne sont pas téléchargeables sans authentification.
 
 ## Paroles
