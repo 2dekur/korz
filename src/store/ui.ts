@@ -1,7 +1,9 @@
 import { create } from "zustand";
 
-/** Layout state that is not a route: side panels. */
-export const useUi = create<{ queueOpen: boolean; toggleQueue: () => void }>((set) => ({
-  queueOpen: false,
-  toggleQueue: () => set((s) => ({ queueOpen: !s.queueOpen })),
+export type SidePanel = "queue" | "lyrics";
+
+/** Layout state that is not a route: one side panel at a time. */
+export const useUi = create<{ panel: SidePanel | null; togglePanel: (p: SidePanel) => void }>((set) => ({
+  panel: null,
+  togglePanel: (p) => set((s) => ({ panel: s.panel === p ? null : p })),
 }));

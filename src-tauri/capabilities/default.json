@@ -20,10 +20,17 @@
         },
         {
           "url": "https://itunes.apple.com/*"
+        },
+        {
+          "url": "https://lrclib.net/*"
+        },
+        {
+          "url": "https://api.mymemory.translated.net/*"
         }
       ]
     },
     "fs:allow-read-dir",
-    "fs:allow-stat"
+    "fs:allow-stat",
+    "process:allow-restart"
   ]
 }

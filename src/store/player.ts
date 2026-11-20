@@ -11,8 +11,6 @@ interface PlayerState {
   queue: Track[];
   index: number;
   isPlaying: boolean;
-  /** A full stream is being matched/fetched for the current track. */
-  resolving: boolean;
   position: number;
   duration: number;
   volume: number;
@@ -56,11 +54,16 @@ function shuffled<T>(items: T[]): T[] {
 // --- source fallback ----------------------------------------------------------------------
 // Each load walks the providers in order (local → full stream → 30 s preview as last resort). A provider that
 // fails to resolve, or whose audio errors before the first `playing` event, hands over to the next one.
+// The requested queue/index stay *pending* until audio actually plays: the player UI switches only on success,
+// never shows a loading state, and keeps the previous track if every source fails.
 
 let token = 0;
 let remaining: AudioProvider[] = [];
 let started = false;
 let firstError: unknown;
+let pending: { queue: Track[]; index: number } | null = null;
+
+const pendingTrack = () => (pending ? pending.queue[pending.index] : undefined);
 
 async function tryNextSource(track: Track, mine: number): Promise<void> {
   while (remaining.length) {
@@ -77,22 +80,22 @@ async function tryNextSource(track: Track, mine: number): Promise<void> {
     }
   }
   if (mine !== token) return;
-  usePlayer.setState({ resolving: false, isPlaying: false });
+  pending = null;
+  usePlayer.setState({ isPlaying: false });
   console.error(firstError);
   toast.error(`« ${track.title} » est introuvable`, {
     description: firstError instanceof Error ? firstError.message : String(firstError ?? "Aucune source audio activée"),
   });
 }
 
-async function load(index: number) {
-  const track = usePlayer.getState().queue[index];
+async function load(queue: Track[], index: number) {
+  const track = queue[index];
   if (!track) return;
   const mine = ++token;
+  pending = { queue, index };
   remaining = candidateProviders(track);
   started = false;
   firstError = undefined;
-  audio.pause();
-  usePlayer.setState({ index, position: 0, duration: 0, resolving: true });
   await tryNextSource(track, mine);
 }
 
@@ -104,7 +107,6 @@ export const usePlayer = create<PlayerState>((set, get) => {
     queue: [],
     index: -1,
     isPlaying: false,
-    resolving: false,
     position: 0,
     duration: 0,
     volume: 0.8,
@@ -118,19 +120,14 @@ export const usePlayer = create<PlayerState>((set, get) => {
       if (!start) return;
       const current = get().queue[get().index];
       original = tracks;
-      if (get().shuffle) {
-        set({ queue: [start, ...shuffled(tracks.filter((_, i) => i !== startIndex))] });
-        if (current?.id === start.id) set({ index: 0 });
-        else void load(0);
-        return;
-      }
+      const queue = get().shuffle ? [start, ...shuffled(tracks.filter((_, i) => i !== startIndex))] : tracks;
+      const index = get().shuffle ? 0 : startIndex;
       if (current?.id === start.id) {
-        set({ queue: tracks, index: startIndex });
+        set({ queue, index });
         get().toggle();
         return;
       }
-      set({ queue: tracks });
-      void load(startIndex);
+      void load(queue, index);
     },
 
     enqueue: (track) => {
@@ -140,7 +137,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
       toast("Ajouté à la file d'attente", { description: track.title });
     },
 
-    jumpTo: (index) => void load(index),
+    jumpTo: (index) => void load(get().queue, index),
 
     removeAt: (index) => {
       const { queue, index: current } = get();
@@ -172,8 +169,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     next: () => {
       const { index, queue, repeat } = get();
-      if (index < queue.length - 1) void load(index + 1);
-      else if (repeat === "all" && queue.length) void load(0);
+      if (index < queue.length - 1) void load(queue, index + 1);
+      else if (repeat === "all" && queue.length) void load(queue, 0);
       else {
         audio.pause();
         audio.currentTime = 0;
@@ -181,9 +178,9 @@ export const usePlayer = create<PlayerState>((set, get) => {
     },
 
     prev: () => {
-      const { index } = get();
+      const { index, queue } = get();
       if (audio.currentTime > 3 || index <= 0) audio.currentTime = 0;
-      else void load(index - 1);
+      else void load(queue, index - 1);
     },
 
     seek: (seconds) => {
@@ -214,13 +211,19 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
 let frame = 0;
 const tick = () => {
-  usePlayer.setState({ position: audio.currentTime });
+  // While a new track is pending, the bar keeps showing the previous one.
+  if (!pending) usePlayer.setState({ position: audio.currentTime });
   frame = requestAnimationFrame(tick);
 };
 
 audio.addEventListener("playing", () => {
+  if (started) return;
   started = true;
-  usePlayer.setState({ resolving: false });
+  if (pending) {
+    const { queue, index } = pending;
+    pending = null;
+    usePlayer.setState({ queue, index, position: audio.currentTime, duration: Number.isFinite(audio.duration) ? audio.duration : 0 });
+  }
 });
 audio.addEventListener("play", () => {
   usePlayer.setState({ isPlaying: true });
@@ -233,13 +236,14 @@ audio.addEventListener("pause", () => {
 });
 audio.addEventListener("loadedmetadata", () => {
   const { queue, index, durations } = usePlayer.getState();
-  const track = queue[index];
+  const track = pendingTrack() ?? queue[index];
   if (!track) return;
-  usePlayer.setState({ duration: audio.duration });
+  if (!pending) usePlayer.setState({ duration: audio.duration });
   // Previews are 30 s: only unknown (local) lengths are learned from the file.
   if (!track.duration) usePlayer.setState({ durations: { ...durations, [track.id]: audio.duration } });
 });
 audio.addEventListener("ended", () => {
+  if (pending) return; // the previous track ran out while the requested one is starting: keep that request
   if (usePlayer.getState().repeat === "one") {
     audio.currentTime = 0;
     void play();
@@ -248,7 +252,7 @@ audio.addEventListener("ended", () => {
 audio.addEventListener("error", () => {
   if (!audio.getAttribute("src")) return;
   const { queue, index } = usePlayer.getState();
-  const track = queue[index];
+  const track = pendingTrack() ?? queue[index];
   const code = audio.error?.code;
   console.error("audio element error", code, audio.error?.message);
   // Failed before a single sample played: hand over to the next source right away.
@@ -257,7 +261,8 @@ audio.addEventListener("error", () => {
     void tryNextSource(track, token);
     return;
   }
-  usePlayer.setState({ isPlaying: false, resolving: false });
+  pending = null;
+  usePlayer.setState({ isPlaying: false });
   toast.error("Lecture interrompue", {
     description: track ? `« ${track.title} » : flux illisible (code ${code ?? "?"}).` : undefined,
   });

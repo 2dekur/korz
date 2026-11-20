@@ -1,7 +1,7 @@
 # Korz — mémoire projet
 
 Lecteur de streaming musical desktop. Tauri v2 + React 19 + TypeScript strict + Tailwind v4.
-Version actuelle : **v0.0.5** (voir `ROADMAP.md`). Dépôt git, branche `main`.
+Version actuelle : **v0.0.6** (voir `ROADMAP.md`). Dépôt git `https://github.com/2dekur/korz` (privé), branche `main`.
 
 ## Règles d'or (non négociables)
 
@@ -17,7 +17,7 @@ Version actuelle : **v0.0.5** (voir `ROADMAP.md`). Dépôt git, branche `main`.
 | Rôle | Paquets |
 |---|---|
 | Desktop | `@tauri-apps/api`, `@tauri-apps/cli` (Tauri 2, feature Rust `protocol-asset`) |
-| Plugins Tauri | `plugin-store`, `plugin-fs`, `plugin-dialog`, `plugin-os`, `plugin-window-state`, `plugin-http`, `plugin-persisted-scope` (feature `protocol-asset`), `plugin-opener` (template) |
+| Plugins Tauri | `plugin-store`, `plugin-fs`, `plugin-dialog`, `plugin-os`, `plugin-window-state`, `plugin-http`, `plugin-persisted-scope` (feature `protocol-asset`), `plugin-updater`, `plugin-process` (relaunch), `plugin-opener` (template) |
 | Front | React 19, Vite 8, TypeScript 6 (`strict`, `noUncheckedIndexedAccess`), Tailwind CSS 4 (`@tailwindcss/vite`) |
 | État / perf | `zustand`, `@tanstack/react-virtual` |
 | Moteur audio (Rust) | `rustypipe` 0.11 (**GPL-3.0** : un binaire distribué devrait l'être sous GPL-3.0), `tokio` (dev, tests async) |
@@ -30,7 +30,22 @@ Lecture complète (moteur hybride, `src-tauri/src/stream.rs`) :
 - **Interdit : ne jamais générer de PO token ni lancer de solveur Botguard** (`rustypipe-botguard` ou équivalent), **ni choisir un client YouTube parce qu'il échappe au PO token** (ex. `yt-dlp --extractor-args youtube:player_client=android_vr`) : c'est du contournement de détection anti-bot. `RustyPipe::builder().no_botguard()` est obligatoire.
 - Interface : le moteur s'appelle « Lecteur Global » ; ne jamais afficher « Invidious » dans l'UI.
 
-Permissions : `src-tauri/capabilities/default.json` (http limité à `api.deezer.com` et `itunes.apple.com`, `fs:allow-read-dir`, `fs:allow-stat`) + `desktop.json` (window-state). Asset protocol activé avec scope vide : seuls les dossiers choisis via le dialogue sont accessibles (le dialogue ajoute le scope, persisted-scope le conserve).
+Permissions : `src-tauri/capabilities/default.json` (http limité à `api.deezer.com`, `itunes.apple.com`, `lrclib.net`, `api.mymemory.translated.net` ; `process:allow-restart`, `fs:allow-read-dir`, `fs:allow-stat`) + `desktop.json` (window-state, updater). Asset protocol activé avec scope vide : seuls les dossiers choisis via le dialogue sont accessibles (le dialogue ajoute le scope, persisted-scope le conserve).
+
+## Mises à jour et releases
+
+- `tauri-plugin-updater` : endpoint `https://github.com/2dekur/korz/releases/latest/download/latest.json`, clé publique dans `tauri.conf.json` (`plugins.updater.pubkey`), `bundle.createUpdaterArtifacts: true`, installation Windows `passive`.
+- **Clé privée de signature : `C:\Users\alpha\.tauri\korz.key` (sans mot de passe). Jamais dans le dépôt, jamais lue ni affichée.** La perdre = plus aucune mise à jour possible pour les installations existantes.
+- Vérification 3 s après le lancement (`store/updates.ts`) ; popup `UpdateToast` sauf si la version a été fermée (`ignoredUpdates` persisté) ; Paramètres > Mises à jour permet toujours d'installer.
+- Notes de version = section `### vX.Y.Z` de `ROADMAP.md` (`scripts/release-notes.mjs`) : la rédiger pour l'utilisateur final.
+- Publication : tag `vX.Y.Z` → `.github/workflows/release.yml` (tauri-action) si les secrets `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD` existent ; sinon build local signé + `gh release create` avec `latest.json`.
+- **Un dépôt privé bloque l'auto-update** : les fichiers de release d'un dépôt privé ne sont pas téléchargeables sans authentification.
+
+## Paroles
+
+- LRCLIB (`/api/get` exact titre+artiste+album+durée, repli `/api/search` ±3 s, synchronisées préférées) ; parseur LRC pur `src/lib/lyrics.ts` (testé).
+- Traduction FR : MyMemory (`langpair=autodetect|fr`), lots ≤ 450 octets joints par `\n`, une requête par lot ; source française détectée (ou refus « DISTINCT LANGUAGES ») = pas de traduction. Cache persistant `lyricsTranslations` (300 titres max). Quota anonyme ≈ 5 000 caractères/jour.
+- Panneau latéral unique (`store/ui.ts` : `panel` = file ou paroles), ligne active calculée par sélecteur (re-rendu seulement au changement de ligne), clic = seek, molette = pause du suivi 3 s.
 
 ## Architecture
 

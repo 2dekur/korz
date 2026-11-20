@@ -1,0 +1,71 @@
+# Builds the signed Windows installer and publishes a GitHub Release with latest.json (read by the in-app updater).
+# Trigger: push a tag `vX.Y.Z` matching the version in package.json / tauri.conf.json.
+# Required repository secrets: TAURI_SIGNING_PRIVATE_KEY (content of the updater private key)
+# and TAURI_SIGNING_PRIVATE_KEY_PASSWORD (empty if the key has no password).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Signing key present?
+        id: key
+        shell: bash
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::notice::TAURI_SIGNING_PRIVATE_KEY secret missing: release skipped (publish locally instead)."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.key.outputs.skip != 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.key.outputs.skip != 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.key.outputs.skip != 'true'
+
+      - uses: swatinem/rust-cache@v2
+        if: steps.key.outputs.skip != 'true'
+        with:
+          workspaces: src-tauri -> target
+
+      - run: npm ci
+        if: steps.key.outputs.skip != 'true'
+
+      - name: Release notes from ROADMAP.md
+        if: steps.key.outputs.skip != 'true'
+        id: notes
+        shell: bash
+        run: |
+          {
+            echo "body<<KORZ_NOTES_EOF"
+            node scripts/release-notes.mjs "${GITHUB_REF_NAME}"
+            echo "KORZ_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: tauri-apps/tauri-action@v0
+        if: steps.key.outputs.skip != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Korz ${{ github.ref_name }}
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: false
+          prerelease: false

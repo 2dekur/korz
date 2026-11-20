@@ -1,8 +1,14 @@
 # Roadmap — Korz
 
-**Version actuelle : v0.0.5** (validée : `npm run build`, `npm test`, `cargo check`, `cargo test` dont tests réseau, lecture native Werenoi/Avie)
+**Version actuelle : v0.0.6** (validée : `npm run build`, `npm test`, `cargo check`, `cargo test` dont tests réseau, lecture native Werenoi/Avie)
 
 ## Historique
+
+### v0.0.6 — Paroles et mises à jour automatiques
+- [x] Paroles synchronisées : bouton Paroles dans le lecteur, défilement en temps réel, clic sur une ligne pour y aller.
+- [x] Traduction française sous chaque ligne (interrupteur dans les paroles et dans les Paramètres), gardée sur l'ordinateur.
+- [x] Mises à jour automatiques : notification discrète au lancement, installation en un clic, version ignorable ; section Mises à jour dans les Paramètres.
+- [x] Installeur Windows téléchargeable depuis les Releases GitHub.
 
 ### v0.0.5 — Albums, file d'attente, démarrage et bascule rapides
 - [x] Page album (Deezer `/album/{id}`, repli iTunes) : pochette, type, année, titres, durée totale, label ; ouverte depuis la discographie et la colonne Album.
@@ -51,7 +57,7 @@ Limites connues v0.0.3 :
 - Lecture complète dépendante de 1-2 instances publiques Piped/Invidious ; usage personnel uniquement (CGU YouTube).
 - Fichiers locaux : métadonnées tirées du nom de fichier ; albums non cliquables.
 
-## Prochaine version : v0.0.6 — Robustesse du flux et confort
+## Prochaine version : v0.0.7 — Robustesse du flux et confort
 - [ ] Indicateur discret de disponibilité du Lecteur Global dans Paramètres > Sources audio.
 - [ ] Raccourcis clavier (Espace, ←/→, Ctrl+K).
 - [ ] Tags et pochettes des fichiers locaux (`lofty`).

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { AudioQuality } from "@/types";
 import { cn } from "@/lib/cn";
 import { useSettings } from "@/store/settings";
+import { useUpdates } from "@/store/updates";
 import { Switch } from "@/components/ui/Switch";
 import { Artwork, initials } from "@/components/ui/Artwork";
 import pkg from "../../package.json";
@@ -23,7 +24,7 @@ const HUES = [262, 210, 188, 150, 84, 42, 16, 330];
 const system = isTauri() ? `${platform()} ${osVersion()}` : "navigateur (aperçu web)";
 
 export function SettingsPage() {
-  const { audioQuality, sources, hardwareAcceleration, profile, update, updateProfile } = useSettings();
+  const { audioQuality, lyricsTranslate, sources, hardwareAcceleration, profile, update, updateProfile } = useSettings();
   const [name, setName] = useState(profile.displayName);
 
   const commitName = () => {
@@ -128,6 +129,14 @@ export function SettingsPage() {
         </Row>
       </Section>
 
+      <Section title="Paroles">
+        <Row title="Traduire en français" description="Affiche la traduction sous chaque ligne des paroles. Les traductions sont gardées sur cet ordinateur." htmlFor="set-lyrics-fr">
+          <Switch id="set-lyrics-fr" checked={lyricsTranslate} onCheckedChange={(v) => update({ lyricsTranslate: v })} />
+        </Row>
+      </Section>
+
+      <UpdatesSection />
+
       <Section title="Système">
         <Row
           title="Accélération matérielle"
@@ -217,5 +226,55 @@ function ResetDialog({ onReset }: { onReset: () => void }) {
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+function UpdatesSection() {
+  const { current, status, available, progress, error } = useUpdates();
+  const { check, install } = useUpdates.getState();
+  const desktop = isTauri();
+  const busy = status === "checking" || status === "downloading";
+  const state =
+    !desktop ? "Disponible dans l'application desktop."
+    : status === "checking" ? "Recherche en cours…"
+    : status === "uptodate" ? "Korz est à jour."
+    : status === "available" ? `Version ${available?.version} disponible.`
+    : status === "downloading" ? `Téléchargement… ${progress === null ? "" : `${Math.round(progress * 100)} %`}`
+    : status === "error" ? `Vérification impossible : ${error}`
+    : "Pas encore vérifié.";
+  return (
+    <Section title="Mises à jour">
+      <div className="p-5">
+        <div className="flex items-center justify-between gap-6">
+          <div>
+            <div className="text-[14px] font-medium">Korz {current || pkg.version}</div>
+            <div className="mt-0.5 text-[13px] text-muted" role="status">{state}</div>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              disabled={!desktop || busy}
+              onClick={() => void check()}
+              className="h-8 rounded-full px-4 text-[13px] font-medium ring-1 ring-white/15 transition hover:bg-white/[0.06] disabled:opacity-40"
+            >
+              Rechercher
+            </button>
+            {status === "available" || status === "downloading" ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void install()}
+                className="h-8 rounded-full bg-accent px-4 text-[13px] font-semibold text-bg transition hover:brightness-105 disabled:opacity-60"
+              >
+                {status === "downloading" ? "Installation…" : "Installer maintenant"}
+              </button>
+            ) : null}
+          </div>
+        </div>
+        {available && status !== "uptodate" && (
+          <p className="mt-4 whitespace-pre-line rounded-lg bg-black/25 p-3 text-[13px] leading-relaxed text-muted">{available.notes}</p>
+        )}
+      </div>
+    </Section>
   );
 }

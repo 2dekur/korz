@@ -83,6 +83,8 @@ export interface AudioSources {
 
 export interface Settings {
   audioQuality: AudioQuality;
+  /** Show a French translation under each lyric line. */
+  lyricsTranslate: boolean;
   sources: AudioSources;
   hardwareAcceleration: boolean;
   profile: Profile;

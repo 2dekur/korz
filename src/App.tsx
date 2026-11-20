@@ -9,6 +9,7 @@ import { LibraryPage } from "@/pages/LibraryPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { ArtistPage } from "@/pages/ArtistPage";
 import { AlbumPage } from "@/pages/AlbumPage";
+import { UpdateToast } from "@/components/layout/UpdateToast";
 
 function CurrentPage() {
   const route = useRoute();
@@ -35,6 +36,7 @@ export default function App() {
         <AppShell>
           <CurrentPage />
         </AppShell>
+        <UpdateToast />
         <Toaster
           theme="dark"
           position="bottom-right"

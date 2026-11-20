@@ -19,6 +19,8 @@ fn hardware_acceleration_enabled(app: &tauri::App) -> bool {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // `korzstream://localhost/<videoId>`: range-served full-length audio (see stream.rs).
         .register_asynchronous_uri_scheme_protocol("korzstream", |ctx, request, responder| {
             let s = ctx.app_handle().state::<Arc<stream::Streams>>().inner().clone();

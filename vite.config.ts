@@ -32,6 +32,8 @@ export default defineConfig(() => ({
     proxy: {
       "/proxy/deezer": { target: "https://api.deezer.com", changeOrigin: true, rewrite: (p: string) => p.replace(/^\/proxy\/deezer/, "") },
       "/proxy/itunes": { target: "https://itunes.apple.com", changeOrigin: true, rewrite: (p: string) => p.replace(/^\/proxy\/itunes/, "") },
+      "/proxy/lrclib": { target: "https://lrclib.net", changeOrigin: true, rewrite: (p: string) => p.replace(/^\/proxy\/lrclib/, "") },
+      "/proxy/mymemory": { target: "https://api.mymemory.translated.net", changeOrigin: true, rewrite: (p: string) => p.replace(/^\/proxy\/mymemory/, "") },
     },
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`

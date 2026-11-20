@@ -6,13 +6,14 @@ import { TopBar } from "./TopBar";
 import { ScrollContext } from "./ScrollContext";
 import { PlayerBar } from "@/components/player/PlayerBar";
 import { QueuePanel } from "@/components/player/QueuePanel";
+import { LyricsPanel } from "@/components/player/LyricsPanel";
 import { useUi } from "@/store/ui";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const scrollRef = useRef<HTMLElement>(null);
   const cursor = useNavigation((s) => s.cursor);
   const routeKey = useNavigation((s) => JSON.stringify(s.history[s.cursor]));
-  const queueOpen = useUi((s) => s.queueOpen);
+  const panel = useUi((s) => s.panel);
 
   // Each navigation starts at the top, like a native app switching views.
   useLayoutEffect(() => {
@@ -21,7 +22,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div
-      className={`grid h-screen ${queueOpen ? "grid-cols-[248px_minmax(0,1fr)_auto]" : "grid-cols-[248px_minmax(0,1fr)]"} grid-rows-[minmax(0,1fr)_auto] bg-bg text-fg`}
+      className={`grid h-screen ${panel ? "grid-cols-[248px_minmax(0,1fr)_auto]" : "grid-cols-[248px_minmax(0,1fr)]"} grid-rows-[minmax(0,1fr)_auto] bg-bg text-fg`}
     >
       <Sidebar />
       <ScrollContext.Provider value={scrollRef}>
@@ -39,7 +40,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </motion.div>
         </main>
       </ScrollContext.Provider>
-      {queueOpen && <QueuePanel />}
+      {panel === "queue" && <QueuePanel />}
+      {panel === "lyrics" && <LyricsPanel />}
       <PlayerBar />
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ListMusic, Loader2, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume, Volume1, Volume2, VolumeX } from "lucide-react";
+import { ListMusic, MicVocal, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume, Volume1, Volume2, VolumeX } from "lucide-react";
 import { useUi } from "@/store/ui";
 import { formatTime } from "@/lib/format";
 import { usePlayer, useCurrentTrack } from "@/store/player";
@@ -37,7 +37,6 @@ function NowPlaying() {
 
 function Transport() {
   const isPlaying = usePlayer((s) => s.isPlaying);
-  const resolving = usePlayer((s) => s.resolving);
   const hasTrack = usePlayer((s) => s.index >= 0);
   const shuffle = usePlayer((s) => s.shuffle);
   const repeat = usePlayer((s) => s.repeat);
@@ -64,9 +63,7 @@ function Transport() {
             disabled={!hasTrack}
             className="flex size-9 items-center justify-center rounded-full bg-fg text-bg transition-transform duration-150 hover:scale-[1.06] active:scale-95 disabled:opacity-30"
           >
-            {resolving ? (
-              <Loader2 className="size-4 animate-spin" aria-label="Chargement du flux" />
-            ) : isPlaying ? (
+            {isPlaying ? (
               <Pause className="size-4 fill-current" />
             ) : (
               <Play className="ml-0.5 size-4 fill-current" />
@@ -136,12 +133,20 @@ function VolumeControl() {
 }
 
 function QueueToggle() {
-  const open = useUi((s) => s.queueOpen);
+  const panel = useUi((s) => s.panel);
+  const { togglePanel } = useUi.getState();
   return (
-    <Tooltip label="File d'attente">
-      <IconButton label="File d'attente" active={open} aria-pressed={open} onClick={useUi.getState().toggleQueue} className="mr-2">
-        <ListMusic className="size-[18px]" />
-      </IconButton>
-    </Tooltip>
+    <>
+      <Tooltip label="Paroles">
+        <IconButton label="Paroles" active={panel === "lyrics"} aria-pressed={panel === "lyrics"} onClick={() => togglePanel("lyrics")}>
+          <MicVocal className="size-[18px]" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip label="File d'attente">
+        <IconButton label="File d'attente" active={panel === "queue"} aria-pressed={panel === "queue"} onClick={() => togglePanel("queue")} className="mr-2">
+          <ListMusic className="size-[18px]" />
+        </IconButton>
+      </Tooltip>
+    </>
   );
 }

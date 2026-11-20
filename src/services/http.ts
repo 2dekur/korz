@@ -5,6 +5,8 @@ import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 const DEV_PROXY: [origin: string, prefix: string][] = [
   ["https://api.deezer.com", "/proxy/deezer"],
   ["https://itunes.apple.com", "/proxy/itunes"],
+  ["https://lrclib.net", "/proxy/lrclib"],
+  ["https://api.mymemory.translated.net", "/proxy/mymemory"],
 ];
 
 /** GET JSON through Rust (`plugin-http`, no CORS). Scope: `capabilities/default.json`. */

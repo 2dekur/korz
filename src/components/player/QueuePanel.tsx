@@ -21,7 +21,7 @@ export function QueuePanel() {
     <aside className="row-span-1 flex min-h-0 w-[340px] flex-col border-l border-line bg-bg" aria-label="File d'attente">
       <div className="flex h-16 items-center justify-between px-5">
         <h2 className="font-display text-[16px] font-bold">File d'attente</h2>
-        <IconButton label="Fermer la file d'attente" onClick={useUi.getState().toggleQueue}>
+        <IconButton label="Fermer la file d'attente" onClick={() => useUi.getState().togglePanel("queue")}>
           <X className="size-4" />
         </IconButton>
       </div>

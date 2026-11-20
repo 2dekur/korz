@@ -4,6 +4,7 @@ import { readKey, writeKey } from "@/services/persist";
 
 export const DEFAULT_SETTINGS: Settings = {
   audioQuality: "high",
+  lyricsTranslate: false,
   sources: { fullStream: true, previewFallback: true },
   hardwareAcceleration: true,
   profile: { displayName: "Auditeur", hue: 262 },
@@ -26,6 +27,7 @@ function sanitize(raw: unknown): Settings {
       fullStream: typeof src.fullStream === "boolean" ? src.fullStream : d.sources.fullStream,
       previewFallback: typeof src.previewFallback === "boolean" ? src.previewFallback : d.sources.previewFallback,
     },
+    lyricsTranslate: typeof r.lyricsTranslate === "boolean" ? r.lyricsTranslate : d.lyricsTranslate,
     hardwareAcceleration: typeof r.hardwareAcceleration === "boolean" ? r.hardwareAcceleration : d.hardwareAcceleration,
     profile: {
       displayName:
@@ -42,8 +44,9 @@ interface SettingsState extends Settings {
   hydrate: () => Promise<void>;
 }
 
-const pick = ({ audioQuality, sources, hardwareAcceleration, profile }: Settings): Settings => ({
+const pick = ({ audioQuality, lyricsTranslate, sources, hardwareAcceleration, profile }: Settings): Settings => ({
   audioQuality,
+  lyricsTranslate,
   sources,
   hardwareAcceleration,
   profile,
