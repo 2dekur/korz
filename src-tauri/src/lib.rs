@@ -26,7 +26,7 @@ pub fn run() {
             let s = ctx.app_handle().state::<Arc<stream::Streams>>().inner().clone();
             tauri::async_runtime::spawn(async move { responder.respond(s.serve(request).await) });
         })
-        .invoke_handler(tauri::generate_handler![stream::resolve_stream, stream::prefetch_stream])
+        .invoke_handler(tauri::generate_handler![stream::resolve_stream, stream::prefetch_stream, stream::ytm_lyrics, stream::lyrics_search])
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_os::init())

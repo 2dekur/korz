@@ -1,4 +1,4 @@
-import type { Album, AlbumPageData, Artist, ArtistPageData, HomeData, SearchResults, Track } from "@/types";
+import type { Album, AlbumPageData, Artist, ArtistPageData, ArtistRef, HomeData, SearchResults, Track } from "@/types";
 import { buildSuggestions, cleanArtists, cleanTracks, pickTopArtist, previewExpired, relevantArtists } from "@/lib/music";
 import { getJson } from "./http";
 
@@ -46,6 +46,7 @@ const dzTrack = (t: DzTrack): Track => ({
   coverLarge: t.album?.cover_xl,
   duration: t.duration,
   explicit: t.explicit_lyrics,
+  credited: !!t.contributors?.length,
   rank: t.rank,
   src: t.preview,
   source: "deezer",
@@ -226,6 +227,13 @@ export async function getAlbumPage(id: string, signal?: AbortSignal): Promise<Al
     artists: [{ id: `it-${head.artistId}`, name: head.artistName }],
     tracks: results.filter((r) => r.wrapperType === "track" && r.previewUrl).map(itTrack),
   };
+}
+
+/** Full credits of a Deezer track (main + featured artists, in Deezer's order). */
+export async function getTrackCredits(id: string): Promise<ArtistRef[]> {
+  if (!id.startsWith("dz-")) return [];
+  const t = await dz<DzTrack>(`/track/${id.slice(3)}`);
+  return (t.contributors?.length ? t.contributors : [t.artist]).map((a) => ({ id: `dz-${a.id}`, name: a.name }));
 }
 
 export async function getHome(signal?: AbortSignal): Promise<HomeData> {

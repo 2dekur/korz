@@ -17,6 +17,8 @@ export interface Track {
   /** Full track length in seconds; 0 when unknown (local files before first play). */
   duration: number;
   explicit: boolean;
+  /** Full credits (all main + featured artists) already known, no need to fetch them. */
+  credited?: boolean;
   /** Deezer popularity (0-1 000 000), used to drop low-ranked duplicates of the same title. */
   rank?: number;
   /** Remote: preview URL. Local: absolute file path (converted to an asset URL at play time). */

@@ -1,5 +1,5 @@
 // Pure helpers (no Tauri imports) so they run under `node --test`.
-import type { Artist, Track } from "../types/index.ts";
+import type { Artist, ArtistRef, Track } from "../types/index.ts";
 import { normalize } from "./format.ts";
 
 /** Versions nobody asked for. Each term is only filtered when the query does not contain it. */
@@ -117,6 +117,43 @@ export function previewExpired(url: string, nowMs = Date.now()): boolean {
 export const AUDIO_FILE = /\.(mp3|flac|wav|m4a|aac|ogg|opus)$/i;
 
 /** `Artist - Title.ext` → artist + title; otherwise the file name is the title. Parent folder = album. */
+/** "SDM, Ninho & Gims et Vacra" → names. A lone "&" inside a name like "Simon & Garfunkel" is a known limit. */
+export function splitArtistNames(text: string): string[] {
+  return text
+    .split(/\s*(?:,|&|\bet\b|\band\b|\bx\b)\s*/i)
+    .map((n) => n.trim())
+    .filter(Boolean);
+}
+
+const FEAT_BRACKETED = /[([]\s*(?:feat\.?|ft\.?|featuring|avec|with)\s+([^)\]]+)[)\]]/gi;
+const FEAT_TRAILING = /\s(?:feat\.?|ft\.?|featuring)\s+(.+)$/i;
+
+/** Artists credited in a title: "(feat. A & B)", "[ft. A]", "(avec A)", "… feat. A". */
+export function featuredFromTitle(title: string): ArtistRef[] {
+  const names = [...title.matchAll(FEAT_BRACKETED)].flatMap((m) => splitArtistNames(m[1]!));
+  const bare = title.replace(FEAT_BRACKETED, "");
+  const trailing = FEAT_TRAILING.exec(bare)?.[1];
+  if (trailing) names.push(...splitArtistNames(trailing));
+  return names.map((name) => ({ name }));
+}
+
+/** Concatenates artist lists in order, dropping case/accent-insensitive duplicates; an entry with an id wins. */
+export function mergeArtists(...lists: ArtistRef[][]): ArtistRef[] {
+  const out: ArtistRef[] = [];
+  for (const a of lists.flat()) {
+    const key = normalize(a.name);
+    if (!key) continue;
+    const i = out.findIndex((o) => normalize(o.name) === key);
+    if (i < 0) out.push(a);
+    else if (!out[i]!.id && a.id) out[i] = a;
+  }
+  return out;
+}
+
+/** Every artist of a track: credits first, then featurings named in the title. */
+export const allArtists = (track: Track, credits?: ArtistRef[]): ArtistRef[] =>
+  mergeArtists(credits ?? [], track.artists, featuredFromTitle(track.title));
+
 export function trackFromFile(path: string): Track {
   const parts = path.split(/[\\/]/);
   const file = parts.at(-1) ?? path;
@@ -126,7 +163,7 @@ export function trackFromFile(path: string): Track {
   return {
     id: `local:${path}`,
     title: dash > 0 ? base.slice(dash + 3).trim() : base.trim(),
-    artists: [{ name: dash > 0 ? base.slice(0, dash).trim() : "Artiste inconnu" }],
+    artists: dash > 0 ? splitArtistNames(base.slice(0, dash).replace(/\s(?:feat\.?|ft\.?)\s/gi, ", ")).map((name) => ({ name })) : [{ name: "Artiste inconnu" }],
     album: folder ? { title: folder } : undefined,
     duration: 0,
     explicit: false,

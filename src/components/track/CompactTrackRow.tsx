@@ -6,7 +6,7 @@ import { formatTime } from "@/lib/format";
 import { useCurrentTrack, usePlayer } from "@/store/player";
 import { Artwork } from "@/components/ui/Artwork";
 import { ExplicitBadge } from "@/components/ui/Badges";
-import { ArtistLinks } from "./ArtistLinks";
+import { TrackArtists } from "./TrackArtists";
 import { LikeButton } from "./LikeButton";
 import { useHoverPrefetch } from "@/hooks/useHoverPrefetch";
 
@@ -41,7 +41,7 @@ export function CompactTrackRow({ track, active, className, ...props }: Props) {
         </div>
         <div className="flex items-center gap-1.5">
           {track.explicit && <ExplicitBadge />}
-          <ArtistLinks artists={track.artists} />
+          <TrackArtists track={track} />
         </div>
       </div>
       <LikeButton track={track} className="opacity-0 group-hover:opacity-100 aria-pressed:opacity-100" />

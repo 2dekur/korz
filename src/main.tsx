@@ -9,10 +9,11 @@ import { usePlayer } from "@/store/player";
 import { useLibrary } from "@/store/library";
 import { hydrateStreamIds } from "@/services/audioProviders";
 import { hydrateTranslations } from "@/store/lyrics";
+import { hydrateCredits } from "@/store/credits";
 import { useUpdates } from "@/store/updates";
 
 // Local store reads take a few ms; awaiting them avoids a flash of default profile/volume/library.
-await Promise.all([useSettings.getState().hydrate(), usePlayer.getState().hydrate(), useLibrary.getState().hydrate(), hydrateStreamIds(), hydrateTranslations()]);
+await Promise.all([useSettings.getState().hydrate(), usePlayer.getState().hydrate(), useLibrary.getState().hydrate(), hydrateStreamIds(), hydrateTranslations(), hydrateCredits()]);
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

@@ -7,7 +7,7 @@ import { Slider } from "@/components/ui/Slider";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { IconButton } from "@/components/ui/IconButton";
 import { Artwork } from "@/components/ui/Artwork";
-import { ArtistLinks } from "@/components/track/ArtistLinks";
+import { TrackArtists } from "@/components/track/TrackArtists";
 import { LikeButton } from "@/components/track/LikeButton";
 
 export function PlayerBar() {
@@ -28,7 +28,7 @@ function NowPlaying() {
       <Artwork src={track.cover} seed={track.id} className="size-14" />
       <div className="min-w-0">
         <div className="truncate text-[14px] font-medium text-fg">{track.title}</div>
-        <ArtistLinks artists={track.artists} className="text-[12px]" />
+        <TrackArtists track={track} className="text-[12px]" />
       </div>
       <LikeButton track={track} />
     </div>

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildSuggestions, cleanTracks, isNoise, pickTopArtist, previewExpired, relevantArtists, trackFromFile } from "./music.ts";
+import { allArtists, buildSuggestions, cleanTracks, featuredFromTitle, isNoise, mergeArtists, pickTopArtist, previewExpired, relevantArtists, splitArtistNames, trackFromFile } from "./music.ts";
 import type { Track } from "../types/index.ts";
 
 const t = (id: string, title: string, artist: string, artistId = artist): Track => ({
@@ -73,4 +73,29 @@ test("trackFromFile", () => {
   assert.equal(tr.artists[0]?.name, "Daft Punk");
   assert.equal(tr.album?.title, "Discovery");
   assert.equal(trackFromFile("/m/song.flac").artists[0]?.name, "Artiste inconnu");
+});
+
+test("featurings are read from titles", () => {
+  assert.deepEqual(featuredFromTitle("Instant Crush (feat. Julian Casablancas)").map((a) => a.name), ["Julian Casablancas"]);
+  assert.deepEqual(featuredFromTitle("Triple V [ft. Damso & Ninho]").map((a) => a.name), ["Damso", "Ninho"]);
+  assert.deepEqual(featuredFromTitle("Jalouse (avec SDM, Vacra)").map((a) => a.name), ["SDM", "Vacra"]);
+  assert.deepEqual(featuredFromTitle("Bina feat. Delil").map((a) => a.name), ["Delil"]);
+  assert.deepEqual(featuredFromTitle("Rue des Martyrs"), []);
+  assert.deepEqual(splitArtistNames("SDM, Ninho & Gims et Vacra"), ["SDM", "Ninho", "Gims", "Vacra"]);
+});
+
+test("mergeArtists dedupes case/accent-insensitively and keeps ids", () => {
+  const merged = mergeArtists([{ name: "SDM" }], [{ id: "dz-1", name: "sdm" }, { id: "dz-2", name: "Ninho" }], [{ name: "NINHO" }]);
+  assert.deepEqual(merged, [{ id: "dz-1", name: "sdm" }, { id: "dz-2", name: "Ninho" }]);
+});
+
+test("allArtists combines credits, track artists and title featurings", () => {
+  const track = t("1", "BANTU MENTALITÉ (feat. Gims)", "SDM", "dz-27");
+  assert.deepEqual(allArtists(track, [{ id: "dz-27", name: "SDM" }, { id: "dz-9", name: "Ninho" }]).map((a) => a.name), ["SDM", "Ninho", "Gims"]);
+  assert.deepEqual(allArtists(track).map((a) => a.name), ["SDM", "Gims"]);
+});
+
+test("local files split featured artists", () => {
+  const tr = trackFromFile("C:/Music/SDM feat. Ninho - Bantu.mp3");
+  assert.deepEqual(tr.artists.map((a) => a.name), ["SDM", "Ninho"]);
 });

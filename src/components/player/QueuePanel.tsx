@@ -5,7 +5,7 @@ import { usePlayer } from "@/store/player";
 import { useUi } from "@/store/ui";
 import { Artwork } from "@/components/ui/Artwork";
 import { IconButton } from "@/components/ui/IconButton";
-import { ArtistLinks } from "@/components/track/ArtistLinks";
+import { TrackArtists } from "@/components/track/TrackArtists";
 
 /** Upcoming items rendered at once; a queue built from a large local library can hold thousands. */
 const VISIBLE_UPCOMING = 100;
@@ -57,7 +57,7 @@ function Row({ track, active, onPlay, onRemove }: { track: Track; active?: boole
       <Artwork src={track.cover} seed={track.id} className="size-10 rounded-[4px] shadow-none" />
       <div className="min-w-0 flex-1">
         <div className={cn("truncate text-[14px] font-medium", active ? "text-accent" : "text-fg")}>{track.title}</div>
-        <ArtistLinks artists={track.artists} className="text-[12px]" />
+        <TrackArtists track={track} className="text-[12px]" />
       </div>
       {onRemove && (
         <IconButton

@@ -8,7 +8,7 @@ import { usePlayer, useCurrentTrack } from "@/store/player";
 import { useScrollContainer } from "@/components/layout/ScrollContext";
 import { Artwork } from "@/components/ui/Artwork";
 import { ExplicitBadge } from "@/components/ui/Badges";
-import { ArtistLinks } from "./ArtistLinks";
+import { TrackArtists } from "./TrackArtists";
 import { LikeButton } from "./LikeButton";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { useNavigation } from "@/store/navigation";
@@ -91,7 +91,7 @@ export function TrackList({ tracks, showAlbum = true }: { tracks: Track[]; showA
                   <div className={cn("truncate text-[14px] font-medium", active ? "text-accent" : "text-fg")}>{track.title}</div>
                   <div className="flex min-w-0 items-center gap-1.5">
                     {track.explicit && <ExplicitBadge />}
-                    <ArtistLinks artists={track.artists} />
+                    <TrackArtists track={track} />
                   </div>
                 </div>
               </div>

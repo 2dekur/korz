@@ -7,6 +7,7 @@ import { useLibrary } from "@/store/library";
 import { Artwork } from "@/components/ui/Artwork";
 import { ErrorState } from "@/components/ui/States";
 import { ArtistGrid } from "@/components/track/ArtistCard";
+import { TrackArtistNames } from "@/components/track/TrackArtists";
 import { cn } from "@/lib/cn";
 
 const greeting = () => {
@@ -48,7 +49,7 @@ export function HomePage() {
                   <Artwork src={t.cover} seed={t.id} className="h-16 w-16 rounded-none shadow-none" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[14px] font-semibold">{t.title}</div>
-                    <div className="truncate text-[12px] text-muted">{t.artists.map((a) => a.name).join(", ")}</div>
+                    <div className="truncate text-[12px] text-muted"><TrackArtistNames track={t} /></div>
                   </div>
                   <span className="flex size-9 shrink-0 translate-y-1 items-center justify-center rounded-full bg-accent text-bg opacity-0 shadow-[0_6px_16px_rgb(0_0_0/0.4)] transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
                     <Play className="ml-0.5 size-4 fill-current" />

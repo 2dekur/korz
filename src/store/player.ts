@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import type { Track } from "@/types";
 import { audio } from "@/services/audio";
 import { readKey, writeKey } from "@/services/persist";
+import { trackArtists } from "@/store/credits";
 import { candidateProviders, prefetchSource, type AudioProvider } from "@/services/audioProviders";
 
 export type RepeatMode = "off" | "all" | "one";
@@ -295,7 +296,7 @@ if ("mediaSession" in navigator) {
     if (!track || track === prev.queue[prev.index]) return;
     ms.metadata = new MediaMetadata({
       title: track.title,
-      artist: track.artists.map((a) => a.name).join(", "),
+      artist: trackArtists(track).map((a) => a.name).join(", "),
       album: track.album?.title ?? "",
       artwork: track.coverLarge ? [{ src: track.coverLarge, sizes: "1000x1000", type: "image/jpeg" }] : [],
     });

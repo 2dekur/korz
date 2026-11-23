@@ -405,9 +405,10 @@ impl Streams {
     /// Returns (status, body, total size, mime). A relay that errors, refuses, or (for the first chunk) takes
     /// longer than `FIRST_BYTE_TIMEOUT` is demoted and the next relay is tried immediately.
     async fn fetch_range(&self, id: &str, start: u64, end: u64) -> Result<(u16, Vec<u8>, u64, String), String> {
-        let timeout = if start == 0 { FIRST_BYTE_TIMEOUT } else { RANGE_TIMEOUT };
         let mut last = String::from("aucun relais disponible");
         for attempt in 0..MAX_ATTEMPTS {
+            // Strict deadline on the first try only: with a single live relay, a slow answer still beats the preview.
+            let timeout = if start == 0 && attempt == 0 { FIRST_BYTE_TIMEOUT } else { RANGE_TIMEOUT };
             // Retries always take a fresh URL, from whichever relay now ranks first.
             let f = self.format(id, attempt > 0).await?;
             let t = Instant::now();
@@ -509,7 +510,71 @@ fn plain(status: u16, msg: &str) -> Response<Vec<u8>> {
     Response::builder().status(status).body(msg.as_bytes().to_vec()).expect("static response")
 }
 
+// ---- Lyrics (YouTube Music, local via rustypipe) -----------------------------------------
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct YtmLyrics {
+    pub body: String,
+    /// Attribution shown by YouTube Music ("Source: …").
+    pub footer: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LyricHit {
+    pub video_id: String,
+    pub title: String,
+    pub artists: Vec<String>,
+    pub duration: i64,
+}
+
+impl Streams {
+    pub async fn lyrics(&self, video_id: &str) -> Result<Option<YtmLyrics>, String> {
+        if !valid_id(video_id) {
+            return Err("identifiant invalide".into());
+        }
+        let details = self.rp.query().music_details(video_id).await.map_err(err)?;
+        let Some(lyrics_id) = details.lyrics_id else { return Ok(None) };
+        // A lyrics id without lyrics behind it is reported as an error: treat it as "no lyrics".
+        Ok(self.rp.query().music_lyrics(&lyrics_id).await.ok().map(|l| YtmLyrics { body: l.body, footer: l.footer }))
+    }
+
+    /// YouTube Music search also matches lyric phrases: official tracks only.
+    pub async fn lyric_search(&self, q: &str) -> Result<Vec<LyricHit>, String> {
+        let found = self.rp.query().music_search_tracks(q).await.map_err(err)?;
+        Ok(found
+            .items
+            .items
+            .into_iter()
+            .filter(|t| t.track_type == TrackType::Track)
+            .filter_map(|t| {
+                Some(LyricHit {
+                    duration: i64::from(t.duration?),
+                    artists: t.artists.into_iter().map(|a| a.name).collect(),
+                    video_id: t.id,
+                    title: t.name,
+                })
+            })
+            .take(5)
+            .collect())
+    }
+}
+
 // ---- Tauri commands -----------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn ytm_lyrics(state: tauri::State<'_, Arc<Streams>>, video_id: String) -> Result<Option<YtmLyrics>, String> {
+    state.lyrics(&video_id).await
+}
+
+#[tauri::command]
+pub async fn lyrics_search(state: tauri::State<'_, Arc<Streams>>, q: String) -> Result<Vec<LyricHit>, String> {
+    if q.trim().len() < 8 || q.len() > 300 {
+        return Ok(Vec::new());
+    }
+    state.lyric_search(q.trim()).await
+}
 
 #[tauri::command]
 pub async fn resolve_stream(state: tauri::State<'_, Arc<Streams>>, req: ResolveRequest) -> Result<Resolved, String> {
@@ -696,5 +761,17 @@ mod tests {
             }
         }
         println!("{ok}/{total} titres en version complète");
+    }
+    /// YouTube Music lyrics + lyric-phrase search. `cargo test live_lyrics -- --ignored --nocapture`
+    #[tokio::test]
+    #[ignore]
+    async fn live_lyrics() {
+        let s = Streams::new(None);
+        let l = s.lyrics("UOA02IFSqic").await.expect("lyrics call").expect("Werenoi - Solitaire has lyrics");
+        println!("Solitaire: {} lines | {}", l.body.lines().count(), l.footer);
+        assert!(l.body.lines().count() > 10);
+        let hits = s.lyric_search("j'suis dans la merde j'ai répondu à mon ex").await.expect("search");
+        println!("phrase -> {:?}", hits.iter().map(|h| format!("{} — {}", h.title, h.artists.join(", "))).collect::<Vec<_>>());
+        assert!(hits.iter().any(|h| h.title == "Jalouse"));
     }
 }
