@@ -1,0 +1,17 @@
+name = "korz-license"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+
+# After: wrangler d1 create korz-licenses
+[[d1_databases]]
+binding = "DB"
+database_name = "korz-licenses"
+database_id = "REPLACE_AFTER_wrangler_d1_create"
+
+# After: wrangler kv namespace create HEARTBEATS
+[[kv_namespaces]]
+binding = "HEARTBEATS"
+id = "REPLACE_AFTER_wrangler_kv_namespace_create"
+
+# Secrets (wrangler secret put ADMIN_TOKEN):
+#   ADMIN_TOKEN — bearer token for all /admin/* endpoints

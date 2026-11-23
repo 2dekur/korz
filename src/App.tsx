@@ -10,6 +10,8 @@ import { SettingsPage } from "@/pages/SettingsPage";
 import { ArtistPage } from "@/pages/ArtistPage";
 import { AlbumPage } from "@/pages/AlbumPage";
 import { UpdateToast } from "@/components/layout/UpdateToast";
+import { useLicense } from "@/store/license";
+import { ActivationScreen } from "@/components/activation/ActivationScreen";
 
 function CurrentPage() {
   const route = useRoute();
@@ -30,6 +32,9 @@ function CurrentPage() {
 }
 
 export default function App() {
+  const licenseStatus = useLicense((s) => s.status);
+  if (licenseStatus === "invalid") return <ActivationScreen />;
+
   return (
     <MotionConfig reducedMotion="user">
       <TooltipProvider delayDuration={500} skipDelayDuration={200}>

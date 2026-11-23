@@ -1,7 +1,7 @@
 # Korz — mémoire projet
 
 Lecteur de streaming musical desktop. Tauri v2 + React 19 + TypeScript strict + Tailwind v4.
-Version actuelle : **v0.0.7** (voir `ROADMAP.md`). Dépôt git `https://github.com/2dekur/korz` (public), branche `main`.
+Version actuelle : **v0.0.8** (voir `ROADMAP.md`). Dépôt git `https://github.com/2dekur/korz` (public), branche `main`.
 
 ## Règles d'or (non négociables)
 
@@ -67,6 +67,7 @@ src/
     audio.ts            UNIQUE <audio> partagé
     persist.ts          readKey/writeKey : plugin-store en Tauri, localStorage (préfixe korz:) en navigateur
   store/
+    license.ts          état licence (status, key, expiresAt), hydrateLicense, activateLicense, startHeartbeat
     catalog.ts          cache mémoire des lectures distantes (searches / artists / albums / home), hooks useX
     search.ts           requête courante + demande de focus
     library.ts          titres likés, artistes suivis, dossiers, fichiers locaux (persistés)
@@ -77,6 +78,7 @@ src/
     credits.ts          fetch Deezer contributors throttlé (3 concurrent, 150 ms), persisté (3 000 titres max) ; useTrackArtists, trackArtists
   hooks/                useDebounce, useHoverPrefetch (survol 120 ms + 3 premiers titres visibles → pré-résolution)
   components/
+    activation/         ActivationScreen (gate plein écran si licence invalide)
     ui/                 Slider, Switch, Tooltip, IconButton, Artwork (image + dégradé), Badges, Logo, States
     layout/             AppShell, Sidebar (abonnements), TopBar (+ SearchBox), ScrollContext
     search/SearchBox    barre de recherche + menu flottant (combobox ARIA, flèches/Entrée/Échap)

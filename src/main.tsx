@@ -11,9 +11,10 @@ import { hydrateStreamIds } from "@/services/audioProviders";
 import { hydrateTranslations } from "@/store/lyrics";
 import { hydrateCredits } from "@/store/credits";
 import { useUpdates } from "@/store/updates";
+import { hydrateLicense, startHeartbeat } from "@/store/license";
 
 // Local store reads take a few ms; awaiting them avoids a flash of default profile/volume/library.
-await Promise.all([useSettings.getState().hydrate(), usePlayer.getState().hydrate(), useLibrary.getState().hydrate(), hydrateStreamIds(), hydrateTranslations(), hydrateCredits()]);
+await Promise.all([useSettings.getState().hydrate(), usePlayer.getState().hydrate(), useLibrary.getState().hydrate(), hydrateStreamIds(), hydrateTranslations(), hydrateCredits(), hydrateLicense()]);
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
@@ -23,3 +24,4 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
 
 // Checked after startup so it never competes with the first render or the first track.
 setTimeout(() => void useUpdates.getState().check({ fromLaunch: true }), 3000);
+startHeartbeat();

@@ -2,6 +2,23 @@ mod stream;
 
 use std::sync::Arc;
 
+#[tauri::command]
+fn get_hwid() -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    let out = std::process::Command::new("reg")
+        .args(["query", r"HKLM\SOFTWARE\Microsoft\Cryptography", "/v", "MachineGuid"])
+        .output()
+        .map_err(|e| e.to_string())?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let guid = stdout
+        .lines()
+        .find(|l| l.contains("MachineGuid"))
+        .and_then(|l| l.split_whitespace().last())
+        .unwrap_or("unknown");
+    let hash = Sha256::digest(guid.as_bytes());
+    Ok(format!("{:x}", hash)[..32].to_string())
+}
+
 use tauri::webview::WebviewWindowBuilder;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
@@ -26,7 +43,7 @@ pub fn run() {
             let s = ctx.app_handle().state::<Arc<stream::Streams>>().inner().clone();
             tauri::async_runtime::spawn(async move { responder.respond(s.serve(request).await) });
         })
-        .invoke_handler(tauri::generate_handler![stream::resolve_stream, stream::prefetch_stream, stream::ytm_lyrics, stream::lyrics_search])
+        .invoke_handler(tauri::generate_handler![stream::resolve_stream, stream::prefetch_stream, stream::ytm_lyrics, stream::lyrics_search, get_hwid])
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_os::init())

@@ -1,6 +1,6 @@
 # Roadmap — Korz
 
-**Version actuelle : v0.0.6** (validée : `npm run build`, `npm test`, `cargo check`, `cargo test` dont tests réseau, lecture native Werenoi/Avie)
+**Version actuelle : v0.0.8** (validée : `npm run build`, `npm test`, `cargo check`, `cargo test` dont tests réseau, lecture native Werenoi/Avie)
 
 ## Historique
 
@@ -66,8 +66,16 @@ Limites connues v0.0.3 :
 - [x] Recherche par extrait de paroles : requête > 15 caractères → section « Résultats paroles » en bas de la page de recherche (via `lyrics_search` Rust, YouTube Music).
 - [x] Commandes Rust `ytm_lyrics` et `lyrics_search` exposées dans `lib.rs`.
 
-## Prochaine version : v0.0.8
+### v0.0.8 — Korz Manager (système de licences)
 
-- [ ] Korz Manager : panneau d'administration des licences (Tauri + React + Tailwind, `admin-panel/`) + backend Cloudflare Workers/D1 + intégration client (HWID SHA-256, écran d'activation, heartbeat).
-- [ ] Indicateur discret de disponibilité du Lecteur Global dans Paramètres > Sources audio.
-- [ ] Raccourcis clavier (Espace, ←/→, Ctrl+K).
+- [x] Backend Cloudflare Workers + D1 + KV (`worker/`) : génération de clés `KORZ-XXXX-XXXX-XXXX-XXXX`, activation (liaison HWID), vérification/heartbeat, API admin protégée par bearer token.
+- [x] Commande Rust `get_hwid` : lit `MachineGuid` depuis le registre Windows, hache en SHA-256 (32 hex), exposée dans `generate_handler!`.
+- [x] Intégration client Korz : store `license.ts` (hydration, activation, heartbeat 2 min), écran d'activation `ActivationScreen.tsx`, gate dans `App.tsx`, mode grâce si réseau indisponible.
+- [x] Panneau admin `admin-panel/` : app Tauri séparée, layout sidebar (Suivi Live) + générateur de clés (durée, quantité) + table des licences (statut, expiration, actions révoquer/+7j/copier), auto-refresh 10 s.
+
+## Prochaine version : v0.0.9
+
+- [ ] Paroles syllabiques (`@braccato/core` + `@braccato/parsers`).
+- [ ] Discord Rich Presence.
+- [ ] Mini-player flottant (multi-window Tauri).
+- [ ] Import de playlists Spotify / Apple Music / Deezer.
