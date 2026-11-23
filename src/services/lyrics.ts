@@ -1,6 +1,14 @@
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { Track } from "@/types";
 import { activeLineIndex, chunkLines, parseLrc, parsePlain, type LyricLine } from "@/lib/lyrics";
 import { getJson } from "./http";
+
+export interface LyricHit {
+  video_id: string;
+  title: string;
+  artists: string[];
+  duration: number;
+}
 
 export { activeLineIndex, type LyricLine };
 
@@ -28,8 +36,9 @@ const toLyrics = (item: LrclibItem): Lyrics =>
         ? { kind: "plain", lines: parsePlain(item.plainLyrics) }
         : { kind: "none" };
 
-/** Exact match on LRCLIB (artist + title + duration); falls back to a search within ±3 s, synced preferred. */
-export async function fetchLyrics(track: Track, duration: number): Promise<Lyrics> {
+/** Exact match on LRCLIB (artist + title + duration); falls back to a search within ±3 s, synced preferred.
+ *  If LRCLIB has nothing and a YouTube videoId is known, tries YTM as a last resort. */
+export async function fetchLyrics(track: Track, duration: number, videoId?: string): Promise<Lyrics> {
   const artist = track.artists[0]?.name ?? "";
   const title = track.title.replace(/\s*[([].*$/, "").trim() || track.title;
   const params = new URLSearchParams({ artist_name: artist, track_name: title });
@@ -46,7 +55,21 @@ export async function fetchLyrics(track: Track, duration: number): Promise<Lyric
   const items = await getJson<LrclibItem[]>(`${LRCLIB}/search?${search}`);
   const close = items.filter((i) => !duration || Math.abs((i.duration ?? 0) - duration) <= 3);
   const best = close.find((i) => i.syncedLyrics) ?? close.find((i) => i.plainLyrics) ?? close[0];
-  return best ? toLyrics(best) : { kind: "none" };
+  if (best) return toLyrics(best);
+  // Last resort: YouTube Music lyrics via the Rust backend.
+  if (videoId && isTauri()) {
+    try {
+      const ytm = await invoke<{ body: string }>( "ytm_lyrics", { videoId });
+      if (ytm.body) return { kind: "plain", lines: parsePlain(ytm.body) };
+    } catch { /* YTM lyrics unavailable */ }
+  }
+  return { kind: "none" };
+}
+
+/** Search tracks by lyric excerpt via YouTube Music (Tauri only). */
+export async function lyricsSearch(q: string): Promise<LyricHit[]> {
+  if (!isTauri()) return [];
+  return invoke<LyricHit[]>("lyrics_search", { q }).catch(() => []);
 }
 
 interface MyMemoryResponse {

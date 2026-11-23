@@ -57,8 +57,17 @@ Limites connues v0.0.3 :
 - Lecture complète dépendante de 1-2 instances publiques Piped/Invidious ; usage personnel uniquement (CGU YouTube).
 - Fichiers locaux : métadonnées tirées du nom de fichier ; albums non cliquables.
 
-## Prochaine version : v0.0.7 — Robustesse du flux et confort
+### v0.0.7 — Featurings, robustesse du flux et paroles enrichies
+
+- [x] Featurings affichés partout (lecteur, file, recherche, bibliothèque) : `featuredFromTitle`, `mergeArtists`, `allArtists`, store `credits.ts` (fetch Deezer contributors throttlé, persisté 3 000 titres).
+- [x] Correctif délai relais : limite stricte 1,5 s au 1er essai seulement — évite le fallback extrait quand le seul relais répond en 1-2 s.
+- [x] Préchargement des titres suivant+1 et suivant+2 ; annulation des prefetches obsolètes sur skip rapide (`cancelStalePrefetches`).
+- [x] Fallback paroles YouTube Music : si LRCLIB ne trouve rien, essai `ytm_lyrics` via le backend Rust.
+- [x] Recherche par extrait de paroles : requête > 15 caractères → section « Résultats paroles » en bas de la page de recherche (via `lyrics_search` Rust, YouTube Music).
+- [x] Commandes Rust `ytm_lyrics` et `lyrics_search` exposées dans `lib.rs`.
+
+## Prochaine version : v0.0.8
+
+- [ ] Korz Manager : panneau d'administration des licences (Tauri + React + Tailwind, `admin-panel/`) + backend Cloudflare Workers/D1 + intégration client (HWID SHA-256, écran d'activation, heartbeat).
 - [ ] Indicateur discret de disponibilité du Lecteur Global dans Paramètres > Sources audio.
 - [ ] Raccourcis clavier (Espace, ←/→, Ctrl+K).
-- [ ] Tags et pochettes des fichiers locaux (`lofty`).
-- [ ] Persistance de la file d'attente entre deux lancements.

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { create } from "zustand";
 import type { Track } from "@/types";
 import { fetchLyrics, translateToFrench, type Lyrics, type Translation } from "@/services/lyrics";
+import { getCachedVideoId } from "@/services/audioProviders";
 import { readKey, writeKey } from "@/services/persist";
 
 type Entry<T> = { status: "loading" } | { status: "ready"; data: T } | { status: "error"; error: string };
@@ -43,7 +44,7 @@ export function useLyrics(track: Track | undefined, duration: number) {
     if (current && current.status !== "error") return;
     const put = (e: Entry<Lyrics>) => useLyricsStore.setState((s) => ({ lyrics: { ...s.lyrics, [id]: e } }));
     put({ status: "loading" });
-    fetchLyrics(track, track.duration || duration).then(
+    fetchLyrics(track, track.duration || duration, getCachedVideoId(track.id)).then(
       (data) => put({ status: "ready", data }),
       (err) => put({ status: "error", error: message(err) }),
     );

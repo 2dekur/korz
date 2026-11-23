@@ -1,10 +1,14 @@
 import { Play, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { usePrefetchTracks } from "@/hooks/useHoverPrefetch";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useSearch } from "@/store/search";
 import { retry, searchKey, useSearchResults, prefetchArtist } from "@/store/catalog";
 import { useNavigation } from "@/store/navigation";
 import { usePlayer } from "@/store/player";
+import { lyricsSearch, type LyricHit } from "@/services/lyrics";
+import { seedVideoId } from "@/services/audioProviders";
+import type { Track } from "@/types";
 import { Artwork } from "@/components/ui/Artwork";
 import { VerifiedBadge } from "@/components/ui/Badges";
 import { ErrorState, RowSkeleton } from "@/components/ui/States";
@@ -14,6 +18,12 @@ import { FollowButton } from "@/components/track/FollowButton";
 import { ArtistGrid } from "@/components/track/ArtistCard";
 import { ArtistLinks } from "@/components/track/ArtistLinks";
 
+function lyricHitToTrack(hit: LyricHit): Track {
+  const id = `yt-${hit.video_id}`;
+  seedVideoId(id, hit.video_id);
+  return { id, title: hit.title, artists: hit.artists.map((name) => ({ name })), duration: hit.duration, explicit: false, src: "", source: "deezer" };
+}
+
 export function SearchPage() {
   const query = useSearch((s) => s.query);
   const debounced = useDebounce(query, 200);
@@ -21,6 +31,14 @@ export function SearchPage() {
   usePrefetchTracks(entry?.status === "ready" ? entry.data.tracks : undefined);
   const navigate = useNavigation((s) => s.navigate);
   const playQueue = usePlayer((s) => s.playQueue);
+
+  const isLyricsQuery = debounced.length > 15 && debounced.includes(" ");
+  const [lyricHits, setLyricHits] = useState<LyricHit[]>([]);
+  useEffect(() => {
+    if (!isLyricsQuery) { setLyricHits([]); return; }
+    lyricsSearch(debounced).then(setLyricHits);
+  }, [debounced, isLyricsQuery]);
+  const lyricsTracks = useMemo(() => lyricHits.map(lyricHitToTrack), [lyricHits]);
 
   if (!searchKey(debounced))
     return (
@@ -126,6 +144,14 @@ export function SearchPage() {
         <section className="mt-12">
           <h2 className="mb-3 font-display text-[22px] font-bold tracking-[-0.02em]">Tous les titres</h2>
           <TrackList tracks={tracks} />
+        </section>
+      )}
+
+      {lyricsTracks.length > 0 && (
+        <section className="mt-12">
+          <h2 className="mb-1 font-display text-[22px] font-bold tracking-[-0.02em]">Résultats paroles</h2>
+          <p className="mb-3 text-[13px] text-muted">Paroles : « {debounced} »</p>
+          <TrackList tracks={lyricsTracks} />
         </section>
       )}
     </div>

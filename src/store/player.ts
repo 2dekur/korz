@@ -4,7 +4,7 @@ import type { Track } from "@/types";
 import { audio } from "@/services/audio";
 import { readKey, writeKey } from "@/services/persist";
 import { trackArtists } from "@/store/credits";
-import { candidateProviders, prefetchSource, type AudioProvider } from "@/services/audioProviders";
+import { candidateProviders, prefetchSource, cancelStalePrefetches, type AudioProvider } from "@/services/audioProviders";
 
 export type RepeatMode = "off" | "all" | "one";
 
@@ -93,6 +93,7 @@ async function load(queue: Track[], index: number) {
   const track = queue[index];
   if (!track) return;
   const mine = ++token;
+  cancelStalePrefetches(new Set([queue[index + 1]?.id, queue[index + 2]?.id].filter((id): id is string => !!id)));
   pending = { queue, index };
   remaining = candidateProviders(track);
   started = false;
@@ -269,11 +270,13 @@ audio.addEventListener("error", () => {
   });
 });
 
-// Whatever changes what comes next (new track, shuffle, enqueue, removal), warm it so "next" starts at once.
+// Prefetch next two tracks whenever queue/index change so skips start at once.
 usePlayer.subscribe((s, prev) => {
   if (s.queue === prev.queue && s.index === prev.index) return;
-  const next = s.queue[s.index + 1];
-  if (next && next !== prev.queue[prev.index + 1]) prefetchSource(next);
+  const next1 = s.queue[s.index + 1];
+  const next2 = s.queue[s.index + 2];
+  if (next1 && next1 !== prev.queue[prev.index + 1]) prefetchSource(next1);
+  if (next2 && next2 !== prev.queue[prev.index + 2]) prefetchSource(next2);
 });
 
 // Persist volume, debounced so dragging the slider does not spam the store.

@@ -90,3 +90,23 @@ export function candidateProviders(track: Track): AudioProvider[] {
 export function prefetchSource(track: Track | undefined) {
   if (track && fullStreamProvider.canPlay(track)) resolveFull(track, "prefetch_stream").catch(() => {});
 }
+
+/** Remove inflight prefetch promises for tracks not in keepIds so they don't block future resolves. */
+export function cancelStalePrefetches(keepIds: Set<string>) {
+  for (const key of inflight.keys()) {
+    if (!key.startsWith("prefetch_stream:")) continue;
+    const id = key.slice("prefetch_stream:".length);
+    if (!keepIds.has(id)) inflight.delete(key);
+  }
+}
+
+export function getCachedVideoId(trackId: string): string | undefined {
+  return useStreamIds.getState().ids[trackId];
+}
+
+/** Seed a known videoId (e.g. from a lyrics search hit) so playback skips the search step. */
+export function seedVideoId(trackId: string, videoId: string) {
+  useStreamIds.setState((s) =>
+    s.ids[trackId] === videoId ? s : { ids: { ...s.ids, [trackId]: videoId } },
+  );
+}

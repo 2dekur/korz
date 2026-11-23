@@ -1,7 +1,7 @@
 # Korz — mémoire projet
 
 Lecteur de streaming musical desktop. Tauri v2 + React 19 + TypeScript strict + Tailwind v4.
-Version actuelle : **v0.0.6** (voir `ROADMAP.md`). Dépôt git `https://github.com/2dekur/korz` (privé), branche `main`.
+Version actuelle : **v0.0.7** (voir `ROADMAP.md`). Dépôt git `https://github.com/2dekur/korz` (public), branche `main`.
 
 ## Règles d'or (non négociables)
 
@@ -58,7 +58,7 @@ src/
   types/                Track, Artist, Album, SearchResults, Settings, Route
   lib/                  fonctions pures testées par node:test (imports relatifs .ts, pas d'alias @)
     format.ts           formatTime, normalize
-    music.ts            filtre anti-pollution, dédoublonnage, top artiste, suggestions, expiration preview, parsing fichiers
+    music.ts            filtre anti-pollution, dédoublonnage, top artiste, suggestions, expiration preview, parsing fichiers ; splitArtistNames, featuredFromTitle, mergeArtists, allArtists
   services/
     http.ts             getJson : plugin-http dans Tauri, proxy Vite (/proxy/*) dans le navigateur
     musicApi.ts         Deezer (principal) + iTunes (repli) : métadonnées, page artiste, charts ; playableSrc() = extrait 30 s
@@ -74,12 +74,13 @@ src/
     player.ts           file d'attente (aléatoire, répétition, ajout/retrait/saut), bascule de sources, pré-chargement du suivant, position rAF, volume, Media Session
     ui.ts               panneaux (file d'attente ouverte/fermée)
     settings.ts         préférences + sanitize()
+    credits.ts          fetch Deezer contributors throttlé (3 concurrent, 150 ms), persisté (3 000 titres max) ; useTrackArtists, trackArtists
   hooks/                useDebounce, useHoverPrefetch (survol 120 ms + 3 premiers titres visibles → pré-résolution)
   components/
     ui/                 Slider, Switch, Tooltip, IconButton, Artwork (image + dégradé), Badges, Logo, States
     layout/             AppShell, Sidebar (abonnements), TopBar (+ SearchBox), ScrollContext
     search/SearchBox    barre de recherche + menu flottant (combobox ARIA, flèches/Entrée/Échap)
-    track/              TrackList (virtualisée), CompactTrackRow, ArtistCard/Grid, ArtistLinks, LikeButton, FollowButton
+    track/              TrackList (virtualisée), CompactTrackRow, ArtistCard/Grid, ArtistLinks, LikeButton, FollowButton, TrackArtists (featurings)
     player/             PlayerBar (aléatoire, répétition, file), QueuePanel (En cours / À suivre)
   pages/                Home (charts), Search, Library (onglets), Artist (discographie cliquable), Album, Settings
 src-tauri/src/lib.rs    plugins (persisted-scope après fs), protocole korzstream, commandes stream, fenêtre `main`
@@ -91,6 +92,7 @@ src-tauri/src/stream.rs moteur hybride : recherche rustypipe locale, corresponda
 - Imports via alias `@/` sauf dans `src/lib/` (imports relatifs, exécutés par node).
 - IDs préfixés par source : `dz-<id>` (Deezer), `it-<id>` (iTunes), `local:<chemin>`.
 - Toute lecture distante passe par `store/catalog.ts` (cache) ; aucun fetch direct dans un composant.
+- Affichage des artistes (featurings inclus) toujours via `<TrackArtists track={t} />` ou `trackArtists(t)` (`store/credits.ts`) — jamais `track.artists` directement dans l'UI.
 - Toute lecture passe par `resolveSource()` (`services/audioProviders.ts`) ; jamais d'URL directe dans le lecteur.
 - Le proxy Rust réécrit `Content-Range` d'après les octets reçus (certaines instances renvoient une fin au-delà du fichier, ce que Chromium rejette).
 - Tests Rust réseau : `cargo test live_ -- --ignored --nocapture` (Deezer → résolution → octets audio).
