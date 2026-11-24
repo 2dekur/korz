@@ -11,7 +11,8 @@
 - Recherche instantanée dans la bibliothèque, sans tenir compte des accents ni des majuscules (« cote ouest » trouve « Côte Ouest »), Ctrl+K ; file d'attente ; Espace pour lecture/pause.
 - « Importer un lien » reconnaît les liens Spotify, YouTube, Deezer, Apple Music et SoundCloud (identification seulement pour l'instant).
 - Base de données locale SQLite, journal d'erreurs consultable depuis les Paramètres.
-- Retirés par rapport aux versions précédentes : lecture en ligne YouTube (contraire aux conditions de YouTube), catalogue Deezer, paroles, mises à jour automatiques, licences.
+- Mises à jour automatiques : KORZ vérifie au lancement si une nouvelle version est publiée et l'installe en un clic (aussi dans Paramètres > Mises à jour).
+- Retirés par rapport aux versions précédentes : lecture en ligne YouTube (contraire aux conditions de YouTube), catalogue Deezer, paroles, licences. Les anciennes versions Korz 0.0.x ne se mettent pas à jour vers KORZ Music : désinstallez-les puis installez celle-ci.
 
 ## Prochaine version : v0.0.2 — Lecteur complet
 - [ ] Aléatoire et répétition (moteur Rust), réorganisation et retrait dans la file d'attente.
@@ -23,4 +24,3 @@
 - v0.0.3 : genres, tri et filtres de la bibliothèque, édition non destructive des métadonnées affichées.
 - v0.0.4 : KORZ CONNECT — premier service via API officielle (métadonnées et playlists), KORZ COMPLIANCE (capacités par service).
 - v0.0.5 : Smart Link → correspondance avec la bibliothèque locale.
-- Mises à jour automatiques réactivées dès qu'une release ≥ 0.0.9 rend la numérotation cohérente (ou nouveau canal).

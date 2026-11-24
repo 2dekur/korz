@@ -13,6 +13,8 @@ pub enum AppError {
     Invalid(String),
     #[error("Introuvable : {0}")]
     NotFound(String),
+    #[error("Mise à jour : {0}")]
+    Update(String),
 }
 
 impl AppError {
@@ -23,6 +25,7 @@ impl AppError {
             AppError::Audio(_) => "audio",
             AppError::Invalid(_) => "invalid",
             AppError::NotFound(_) => "not_found",
+            AppError::Update(_) => "update",
         }
     }
 }

@@ -16,6 +16,7 @@ import type {
   ScanSummary,
   Track,
   TrackQuery,
+  UpdateInfo,
 } from "@/types";
 
 /** Typed wrappers over the Rust commands (src-tauri/src/commands.rs). The frontend holds no business logic. */
@@ -53,6 +54,9 @@ export const api = {
   playerState: () => invoke<PlayerState>("player_state"),
 
   parseLink: (url: string) => invoke<LinkInfo>("smartlink_parse", { url }),
+
+  updateCheck: () => invoke<UpdateInfo | null>("update_check"),
+  updateInstall: () => invoke<void>("update_install"),
 };
 
 export const events = {

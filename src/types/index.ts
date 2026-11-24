@@ -110,6 +110,12 @@ export interface AppInfo {
   logDir: string;
 }
 
+export interface UpdateInfo {
+  version: string;
+  current: string;
+  notes: string | null;
+}
+
 export interface AppErrorPayload {
   code: string;
   message: string;

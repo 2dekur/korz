@@ -6,6 +6,7 @@ import { api, errorMessage } from "@/services/api";
 import { useQuery } from "@/hooks/useQuery";
 import { plural } from "@/lib/format";
 import { runScan, useLibrary } from "@/store/library";
+import { checkForUpdate, installUpdate, useUpdates } from "@/store/updates";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AddFolderButton } from "@/components/library/AddFolderButton";
 import { Button } from "@/components/ui/Button";
@@ -67,6 +68,8 @@ export function SettingsPage() {
         </div>
       </Section>
 
+      <UpdatesSection />
+
       <Section title="Formats pris en charge" description="Lecture et métadonnées vérifiées sur de vrais fichiers.">
         <p className="text-[13px] text-muted">MP3 · FLAC · WAV · AAC · M4A (AAC et ALAC) · OGG Vorbis</p>
       </Section>
@@ -89,6 +92,35 @@ export function SettingsPage() {
         )}
       </Section>
     </>
+  );
+}
+
+function UpdatesSection() {
+  const { status, update, error } = useUpdates();
+  return (
+    <Section title="Mises à jour" description="KORZ vérifie au lancement si une nouvelle version est publiée et vous propose de l'installer.">
+      <div className="flex flex-wrap items-center gap-3">
+        {status === "available" && update ? (
+          <Button variant="primary" onClick={() => void installUpdate()}>
+            Installer la version {update.version}
+          </Button>
+        ) : (
+          <Button onClick={() => void checkForUpdate()} disabled={status === "checking" || status === "installing"}>
+            <RefreshCw className={status === "checking" ? "size-3.5 animate-spin" : "size-3.5"} /> Rechercher une mise à jour
+          </Button>
+        )}
+        <span className="text-[13px] text-muted" role="status">
+          {status === "checking" && "Recherche…"}
+          {status === "none" && "Vous avez la dernière version."}
+          {status === "available" && update && `Version ${update.version} disponible (installée : ${update.current}).`}
+          {status === "installing" && "Téléchargement et installation…"}
+          {status === "error" && `Vérification impossible : ${error}`}
+        </span>
+      </div>
+      {status === "available" && update?.notes && (
+        <pre className="mt-4 max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg bg-white/[0.04] p-4 font-sans text-[12.5px] leading-relaxed text-muted">{update.notes}</pre>
+      )}
+    </Section>
   );
 }
 

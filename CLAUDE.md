@@ -30,6 +30,7 @@ src-tauri/src/
     mod.rs          thread dédié (la sortie audio n'est pas Send) ; commandes par canal ; un rodio::Player par titre ; événements player://state et player://position (250 ms)
     queue.rs        file d'attente pure + tests
   smartlink.rs      KORZ SMART LINK : reconnaissance hors ligne des liens Spotify/YouTube/Deezer/Apple Music/SoundCloud + tests
+  updates.rs        mise à jour auto : vérification et installation de la release GitHub signée
 src/
   main.tsx          init lecteur + écouteurs d'événements, puis render
   App.tsx           routeur → pages, Espace = lecture/pause
@@ -51,6 +52,7 @@ Données : `%APPDATA%\com.korz.app\korz.db` ; pochettes : `%LOCALAPPDATA%\com.ko
 | Métadonnées | `lofty` 0.25 | tags, pochettes et durée pour tous les formats ciblés |
 | Base | `rusqlite` 0.43 `bundled` | SQLite embarqué, aucune installation |
 | Erreurs / logs | `thiserror`, `log` + `tauri-plugin-log` | erreurs typées, journal fichier |
+| Mise à jour | `tauri-plugin-updater` (API Rust) | installeur signé vérifié avant installation |
 | Front | React 19, Zustand, `@tanstack/react-virtual`, Radix (slider, switch, tooltip), `sonner`, Lucide | listes de milliers de titres, accessibilité |
 
 Formats vérifiés sur de vrais fichiers (test `formats_read_decode_and_seek`) : MP3, FLAC, WAV, AAC (ADTS), M4A AAC, M4A ALAC, OGG Vorbis — tags, durée, pochette, décodage, seek. Non pris en charge : Opus, WMA.
@@ -80,9 +82,17 @@ Pilotage de l'app pour les tests : lancer avec `WEBVIEW2_ADDITIONAL_BROWSER_ARGU
 
 ## Mises à jour et releases
 
-- L'updater (`tauri-plugin-updater`) est **retiré** en v0.0.1 : une v0.0.1 prendrait la release v0.0.8 pour une mise à jour. Les installations 0.0.x existantes doivent être désinstallées à la main.
-- Clé privée de signature : `C:\Users\alpha\.tauri\korz.key`. Jamais dans le dépôt, jamais lue ni affichée.
-- Notes de version = section `### vX.Y.Z` de `ROADMAP.md` (`scripts/release-notes.mjs`).
+- Mise à jour auto en Rust (`src-tauri/src/updates.rs` : `update_check`, `update_install`), endpoint `https://github.com/2dekur/korz/releases/latest/download/latest.json`, clé publique dans `tauri.conf.json` (`plugins.updater.pubkey`), installation Windows `passive`. Vérification silencieuse 4 s après le lancement (`store/updates.ts`), notification avec « Installer », et Paramètres > Mises à jour.
+- `install()` lance l'installeur puis quitte le processus (`RunEvent::Exit` ne passe pas) : le moteur audio est arrêté juste avant.
+- **Clé privée de signature : `C:Usersalpha.taurikorz.key` (sans mot de passe). Jamais dans le dépôt, jamais lue ni affichée.** La perdre = plus aucune mise à jour possible pour les installations existantes.
+- Notes de version = section `### vX.Y.Z` de `ROADMAP.md` (`scripts/release-notes.mjs`) : la rédiger pour l'utilisateur final.
+- Publication locale (aucun secret de signature sur GitHub, le workflow `release.yml` s'arrête alors de lui-même) :
+  1. version identique dans `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` ;
+  2. `TAURI_SIGNING_PRIVATE_KEY=<chemin de la clé> TAURI_SIGNING_PRIVATE_KEY_PASSWORD= npm run tauri build` ;
+  3. `node scripts/latest-json.mjs X.Y.Z` → `src-tauri/target/release/bundle/release/` (installeurs sans espace + `latest.json`) ;
+  4. `git push`, puis `gh release create vX.Y.Z --target main --latest` avec les 3 fichiers de ce dossier.
+- Les noms de fichiers publiés ne doivent pas contenir d'espace : GitHub les renomme et l'URL de `latest.json` casserait.
+- Les installations Korz 0.0.6/0.0.7 (ancienne base) ne passent pas à 0.0.1 : version inférieure.
 
 ## Limites connues (v0.0.1)
 

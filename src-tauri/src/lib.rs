@@ -6,6 +6,7 @@ mod db;
 mod error;
 mod library;
 mod smartlink;
+mod updates;
 
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -22,6 +23,7 @@ pub fn run() {
         // Logs go to stdout and to <app log dir>/KORZ Music.log (rotated at 2 MB).
         .plugin(tauri_plugin_log::Builder::new().level(log::LevelFilter::Info).max_file_size(2_000_000).build())
         .plugin(tauri_plugin_window_state::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .register_uri_scheme_protocol("korzcover", |ctx, request| commands::cover_response(ctx.app_handle(), &request))
@@ -75,6 +77,8 @@ pub fn run() {
             commands::player_set_volume,
             commands::player_state,
             commands::smartlink_parse,
+            updates::update_check,
+            updates::update_install,
         ])
         .build(tauri::generate_context!())
         .expect("échec du démarrage de KORZ Music");
