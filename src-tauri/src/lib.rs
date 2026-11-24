@@ -31,6 +31,10 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir)?;
             std::fs::create_dir_all(&covers)?;
             let db = Arc::new(db::Db::open(&data_dir.join("korz.db"))?);
+            let filled = db.with(library::queries::backfill_search)?;
+            if filled > 0 {
+                log::info!("index de recherche complété pour {filled} titres");
+            }
             let volume = db
                 .setting("volume")?
                 .and_then(|v| v.parse::<f32>().ok())

@@ -1,6 +1,8 @@
 //! SQL reads and writes. Every function takes the connection so callers decide the transaction.
 
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension, Row, ToSql};
+use unicode_normalization::char::is_combining_mark;
+use unicode_normalization::UnicodeNormalization;
 
 use super::models::*;
 use crate::db::now;
@@ -31,6 +33,27 @@ fn track(r: &Row) -> rusqlite::Result<Track> {
     })
 }
 
+/// Lowercase without diacritics: « Été » and « ete » compare equal. Ligatures are spelled out.
+pub fn fold(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.nfd().filter(|c| !is_combining_mark(*c)).flat_map(char::to_lowercase) {
+        match c {
+            'œ' => out.push_str("oe"),
+            'æ' => out.push_str("ae"),
+            'ß' => out.push_str("ss"),
+            'ø' => out.push('o'),
+            'ł' => out.push('l'),
+            'đ' => out.push('d'),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+fn search_text(title: &str, artist: &str, album: &str, album_artist: &str) -> String {
+    fold(&format!("{title} {artist} {album} {album_artist}"))
+}
+
 /// `%term%` with LIKE wildcards in the user's text escaped.
 fn like(term: &str) -> String {
     let escaped = term.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
@@ -41,12 +64,10 @@ pub fn tracks(c: &Connection, q: &TrackQuery) -> AppResult<Vec<Track>> {
     let mut wheres: Vec<String> = Vec::new();
     let mut args: Vec<Box<dyn ToSql>> = Vec::new();
     if let Some(search) = q.search.as_deref() {
-        // Every word must match the title, artist or album.
-        for word in search.split_whitespace().take(8) {
-            wheres.push("(t.title LIKE ? ESCAPE '\\' OR t.artist LIKE ? ESCAPE '\\' OR t.album LIKE ? ESCAPE '\\')".into());
-            for _ in 0..3 {
-                args.push(Box::new(like(word)));
-            }
+        // Every word must appear in the folded title, artist or album.
+        for word in fold(search).split_whitespace().take(8) {
+            wheres.push("t.search LIKE ? ESCAPE '\\'".into());
+            args.push(Box::new(like(word)));
         }
     }
     if q.favorites {
@@ -168,17 +189,34 @@ pub fn folder_index(c: &Connection, folder_id: i64) -> AppResult<std::collection
 /// Insert or refresh a track; the id (and so favorites, playlists, history) survives a rescan.
 pub fn upsert_track(c: &Connection, folder_id: i64, t: &NewTrack) -> AppResult<()> {
     c.prepare_cached(
-        "INSERT INTO tracks (folder_id, path, title, artist, album, album_artist, genre, track_no, disc_no, year, duration_ms, format, cover, file_size, modified_at, added_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+        "INSERT INTO tracks (folder_id, path, title, artist, album, album_artist, genre, track_no, disc_no, year, duration_ms, format, cover, file_size, modified_at, added_at, search)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
          ON CONFLICT(path) DO UPDATE SET folder_id = excluded.folder_id, title = excluded.title, artist = excluded.artist, album = excluded.album,
            album_artist = excluded.album_artist, genre = excluded.genre, track_no = excluded.track_no, disc_no = excluded.disc_no, year = excluded.year,
-           duration_ms = excluded.duration_ms, format = excluded.format, cover = excluded.cover, file_size = excluded.file_size, modified_at = excluded.modified_at",
+           duration_ms = excluded.duration_ms, format = excluded.format, cover = excluded.cover, file_size = excluded.file_size, modified_at = excluded.modified_at, search = excluded.search",
     )?
     .execute(params![
         folder_id, t.path, t.title, t.artist, t.album, t.album_artist, t.genre, t.track_no, t.disc_no, t.year, t.duration_ms, t.format, t.cover,
-        t.file_size, t.modified_at, now()
+        t.file_size, t.modified_at, now(), search_text(&t.title, &t.artist, &t.album, &t.album_artist)
     ])?;
     Ok(())
+}
+
+/// Fills the search column of rows written before migration 2. Returns how many were updated.
+pub fn backfill_search(c: &mut Connection) -> AppResult<usize> {
+    let tx = c.transaction()?;
+    let rows: Vec<(i64, String)> = {
+        let mut stmt = tx.prepare("SELECT id, title, artist, album, album_artist FROM tracks WHERE search = ''")?;
+        let mapped = stmt.query_map([], |r| {
+            Ok((r.get(0)?, search_text(&r.get::<_, String>(1)?, &r.get::<_, String>(2)?, &r.get::<_, String>(3)?, &r.get::<_, String>(4)?)))
+        })?;
+        mapped.collect::<Result<_, _>>()?
+    };
+    for (id, search) in &rows {
+        tx.execute("UPDATE tracks SET search = ?2 WHERE id = ?1", params![id, search])?;
+    }
+    tx.commit()?;
+    Ok(rows.len())
 }
 
 pub fn delete_track(c: &Connection, id: i64) -> AppResult<()> {
@@ -352,6 +390,29 @@ mod tests {
             assert_eq!(tracks(c, &TrackQuery { search: Some("premier ALBUM".into()), ..Default::default() })?.len(), 1);
             let s = stats(c)?;
             assert_eq!((s.tracks, s.albums, s.artists), (3, 2, 1));
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn search_ignores_accents_and_case() {
+        assert_eq!(fold("L'Été Œuvre STRASSE Straße"), "l'ete oeuvre strasse strasse");
+        let db = seeded();
+        db.with(|c| {
+            upsert_track(c, 1, &sample("C:\\Musique\\d.mp3", "Dernier Métro", "Noël à Paris", 4))?;
+            let n = |c: &Connection, q: &str| tracks(c, &TrackQuery { search: Some(q.into()), ..Default::default() }).map(|v| v.len());
+            assert_eq!(n(c, "METRO")?, 1);
+            assert_eq!(n(c, "dernier métro")?, 1);
+            assert_eq!(n(c, "noel a paris")?, 1);
+            assert_eq!(n(c, "DEUXIEME")?, 1);
+            assert_eq!(n(c, "métro absent")?, 0);
+            // Rows written before migration 2 get their search text at startup.
+            c.execute("UPDATE tracks SET search = ''", [])?;
+            assert_eq!(n(c, "metro")?, 0);
+            assert_eq!(backfill_search(c)?, 4);
+            assert_eq!(n(c, "metro")?, 1);
+            assert_eq!(backfill_search(c)?, 0);
             Ok(())
         })
         .unwrap();

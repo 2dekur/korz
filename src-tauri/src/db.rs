@@ -59,7 +59,10 @@ CREATE TABLE settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
-"#];
+"#,
+    // 2: accent- and case-folded title/artist/album, filled by library::queries::backfill_search.
+    "ALTER TABLE tracks ADD COLUMN search TEXT NOT NULL DEFAULT '';",
+];
 
 pub struct Db {
     conn: Mutex<Connection>,

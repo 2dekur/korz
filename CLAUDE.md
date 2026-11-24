@@ -24,7 +24,7 @@ src-tauri/src/
   commands.rs       commandes Tauri : validation des arguments + appel ; travail bloquant via spawn_blocking
   library/          KORZ LIBRARY
     models.rs       DTO serde camelCase (Track, Album, Artist, Folder, Playlist, …)
-    queries.rs      SQL (recherche LIKE échappée, albums/artistes par GROUP BY, favoris, historique ≤ 5 000, playlists) + tests
+    queries.rs      SQL (recherche sur colonne `search` repliée — minuscules, sans accents, via fold() —, albums/artistes par GROUP BY, favoris, historique ≤ 5 000, playlists) + tests
     scan.rs         parcours de dossier (sans suivre les liens), tags lofty, pochettes en cache par hash, scan incrémental (taille + mtime) + tests
   audio/            KORZ AUDIO ENGINE
     mod.rs          thread dédié (la sortie audio n'est pas Send) ; commandes par canal ; un rodio::Player par titre ; événements player://state et player://position (250 ms)
@@ -76,7 +76,7 @@ cd src-tauri && cargo test && cargo check
 KORZ_FIXTURES=<dossier> cargo test formats -- --ignored --nocapture
 ```
 
-Pilotage de l'app pour les tests : lancer avec `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333`, puis protocole DevTools sur `127.0.0.1:9333`.
+Pilotage de l'app pour les tests : lancer avec `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333`, puis protocole DevTools sur `127.0.0.1:9333`. Niveau de sortie audio réel : session Core Audio du processus `korz.exe` (IAudioMeterInformation). Les dialogues Windows se pilotent au clavier (le champ « Dossier : » n'est pas exposé à UI Automation).
 
 ## Mises à jour et releases
 
@@ -86,7 +86,6 @@ Pilotage de l'app pour les tests : lancer avec `WEBVIEW2_ADDITIONAL_BROWSER_ARGU
 
 ## Limites connues (v0.0.1)
 
-- Recherche insensible à la casse pour l'ASCII seulement (LIKE SQLite) : « é » ≠ « É ».
 - AAC brut (.aac) : pas d'index, durée estimée d'après le débit (écart de quelques %).
 - Pas encore d'aléatoire, de répétition, de réorganisation de la file ni de playlists réordonnables.
 - Pas de surveillance des dossiers : « Réanalyser » dans Paramètres après des ajouts.
