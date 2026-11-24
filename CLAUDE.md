@@ -1,7 +1,7 @@
 # KORZ Music — mémoire projet
 
 Lecteur musical desktop Windows. Tauri v2 + Rust + React 19 + TypeScript strict + Tailwind v4 + SQLite.
-Version actuelle : **v0.0.1** (reboot du 24/11/2026, voir `ROADMAP.md`). Dépôt `https://github.com/2dekur/korz` (public), branche `main`.
+Version actuelle : **v0.0.2** (Smart Link ; reboot du 24/11/2026, voir `ROADMAP.md`). Dépôt `https://github.com/2dekur/korz` (public), branche `main`.
 L'ancienne base (v0.0.1 → v0.0.8 : streaming YouTube via relais, catalogue Deezer, paroles, licences) est conservée sous le tag git `legacy-v0.0.8`.
 
 ## Règles d'or (non négociables)

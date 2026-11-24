@@ -1,6 +1,6 @@
 # Roadmap — KORZ Music
 
-**Version actuelle : v0.0.1** (reboot de l'architecture). L'historique 0.0.1 → 0.0.8 de l'ancienne base est sous le tag git `legacy-v0.0.8`.
+**Version actuelle : v0.0.2** (Smart Link). L'historique 0.0.1 → 0.0.8 de l'ancienne base est sous le tag git `legacy-v0.0.8`.
 
 ## Historique
 
