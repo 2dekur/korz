@@ -16,6 +16,7 @@ import { FavoritesPage } from "@/pages/FavoritesPage";
 import { ImportPage } from "@/pages/ImportPage";
 import { ServicesPage } from "@/pages/ServicesPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { LinkCard } from "@/components/link/LinkCard";
 
 function CurrentPage() {
   const route = useRoute();
@@ -66,6 +67,7 @@ export default function App() {
       <AppShell>
         <CurrentPage />
       </AppShell>
+      <LinkCard />
       <Toaster
         theme="dark"
         position="bottom-right"

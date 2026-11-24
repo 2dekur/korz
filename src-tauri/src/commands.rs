@@ -1,7 +1,7 @@
 //! Tauri commands: argument validation and dispatch only. Logic lives in library/, audio/, smartlink.
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -13,13 +13,19 @@ use crate::db::Db;
 use crate::error::{AppError, AppResult};
 use crate::library::models::*;
 use crate::library::{queries, scan};
-use crate::smartlink::{self, LinkInfo};
+use crate::smartlink::pipeline::{self, Behavior, ImportResult, LinkResolution, LinkSettings};
 
 pub struct AppState {
     pub db: Arc<Db>,
     pub engine: AudioEngine,
     pub covers: PathBuf,
     pub scanning: Arc<AtomicBool>,
+    pub http: reqwest::Client,
+    /// Direct links being played are downloaded here, cleaned after a day.
+    pub links_cache: PathBuf,
+    pub default_import_dir: PathBuf,
+    /// Next id for a track played from a link (negative: never stored).
+    pub ephemeral: AtomicI64,
 }
 
 const MAX_IDS: usize = 20_000;
@@ -263,11 +269,36 @@ pub async fn player_state(state: State<'_, AppState>) -> AppResult<PlayerState> 
 // ── Smart Link ───────────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub async fn smartlink_parse(url: String) -> AppResult<LinkInfo> {
-    if url.len() > 2048 {
-        return Err(AppError::Invalid("Lien trop long".into()));
-    }
-    smartlink::parse(&url)
+pub async fn link_resolve(state: State<'_, AppState>, url: String) -> AppResult<LinkResolution> {
+    pipeline::resolve(&state, &url).await
+}
+
+/// Plays (or queues) the file behind a direct audio link, from the temporary cache.
+#[tauri::command]
+pub async fn link_play(state: State<'_, AppState>, url: String, enqueue: bool) -> AppResult<()> {
+    let track = pipeline::cache_direct(&state, &url).await?;
+    state.engine.send(if enqueue { Command::Enqueue(vec![track]) } else { Command::Play(vec![track], 0) })
+}
+
+#[tauri::command]
+pub async fn link_import(state: State<'_, AppState>, url: String) -> AppResult<ImportResult> {
+    pipeline::import_direct(&state, &url).await
+}
+
+#[tauri::command]
+pub async fn link_settings(state: State<'_, AppState>) -> AppResult<LinkSettings> {
+    pipeline::settings(&state)
+}
+
+#[tauri::command]
+pub async fn link_set_behavior(state: State<'_, AppState>, behavior: Behavior) -> AppResult<LinkSettings> {
+    pipeline::set_behavior(&state.db, behavior)?;
+    pipeline::settings(&state)
+}
+
+#[tauri::command]
+pub async fn link_set_import_dir(state: State<'_, AppState>, path: String) -> AppResult<LinkSettings> {
+    pipeline::set_import_dir(&state, &path)
 }
 
 /// `korzcover://localhost/<hash>`: cached cover images, by content hash only.

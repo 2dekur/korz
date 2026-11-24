@@ -25,22 +25,32 @@ function NowPlaying() {
   const track = useCurrentTrack();
   const navigate = useNavigation((s) => s.navigate);
   if (!track) return <div className="pl-2 text-[13px] text-faint">Aucune lecture en cours</div>;
+  // Played from a direct link: not in the library, so no album/artist page and no favorite.
+  const fromLink = track.id < 0;
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <button type="button" aria-label={`Ouvrir l'album ${track.album}`} onClick={() => navigate({ name: "album", title: track.album, artist: track.albumArtist })}>
-        <Artwork src={coverUrl(track.cover)} seed={track.album} className="size-14" />
-      </button>
+      {fromLink ? (
+        <Artwork src={coverUrl(track.cover)} seed={track.title} className="size-14" />
+      ) : (
+        <button type="button" aria-label={`Ouvrir l'album ${track.album}`} onClick={() => navigate({ name: "album", title: track.album, artist: track.albumArtist })}>
+          <Artwork src={coverUrl(track.cover)} seed={track.album} className="size-14" />
+        </button>
+      )}
       <div className="min-w-0">
         <div className="truncate text-[14px] font-medium">{track.title}</div>
-        <button
-          type="button"
-          onClick={() => navigate({ name: "artist", artist: track.artist })}
-          className="block max-w-full truncate text-[12px] text-muted hover:text-fg hover:underline"
-        >
-          {track.artist}
-        </button>
+        {fromLink ? (
+          <div className="truncate text-[12px] text-muted">Lien direct · hors bibliothèque</div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => navigate({ name: "artist", artist: track.artist })}
+            className="block max-w-full truncate text-[12px] text-muted hover:text-fg hover:underline"
+          >
+            {track.artist}
+          </button>
+        )}
       </div>
-      <LikeButton track={track} className="ml-1 shrink-0" />
+      {!fromLink && <LikeButton track={track} className="ml-1 shrink-0" />}
     </div>
   );
 }

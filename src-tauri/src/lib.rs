@@ -8,7 +8,7 @@ mod library;
 mod smartlink;
 mod updates;
 
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicI64};
 use std::sync::Arc;
 
 use tauri::{Manager, RunEvent};
@@ -43,7 +43,23 @@ pub fn run() {
                 .filter(|v| (0.0..=1.0).contains(v))
                 .unwrap_or(DEFAULT_VOLUME);
             let engine = audio::AudioEngine::start(app.handle().clone(), db.clone(), volume);
-            app.manage(AppState { db, engine, covers, scanning: Arc::new(AtomicBool::new(false)) });
+            let links_cache = app.path().app_cache_dir()?.join("links");
+            std::fs::create_dir_all(&links_cache)?;
+            let default_import_dir = app.path().audio_dir()?.join("KORZ Music");
+            let state = AppState {
+                db,
+                engine,
+                covers,
+                scanning: Arc::new(AtomicBool::new(false)),
+                http: smartlink::direct::client()?,
+                links_cache,
+                default_import_dir,
+                ephemeral: AtomicI64::new(-1),
+            };
+            if let Ok(import) = smartlink::pipeline::import_dir(&state) {
+                smartlink::pipeline::clean_cache(&state.links_cache, &import);
+            }
+            app.manage(state);
             log::info!("KORZ Music {} démarré ({})", app.package_info().version, data_dir.display());
             Ok(())
         })
@@ -76,7 +92,12 @@ pub fn run() {
             commands::player_seek,
             commands::player_set_volume,
             commands::player_state,
-            commands::smartlink_parse,
+            commands::link_resolve,
+            commands::link_play,
+            commands::link_import,
+            commands::link_settings,
+            commands::link_set_behavior,
+            commands::link_set_import_dir,
             updates::update_check,
             updates::update_install,
         ])

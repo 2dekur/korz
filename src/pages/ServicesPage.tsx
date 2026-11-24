@@ -1,6 +1,6 @@
 import { PlugZap } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { PROVIDER_NAMES } from "./ImportPage";
+const PROVIDER_NAMES = { spotify: "Spotify", youtube: "YouTube", deezer: "Deezer", "apple-music": "Apple Music", soundcloud: "SoundCloud" } as const;
 
 const NOTES: Record<keyof typeof PROVIDER_NAMES, string> = {
   spotify: "API Web officielle et compte Spotify ; lecture intégrale réservée au SDK officiel avec abonnement Premium.",
@@ -13,7 +13,7 @@ const NOTES: Record<keyof typeof PROVIDER_NAMES, string> = {
 export function ServicesPage() {
   return (
     <>
-      <PageHeader title="Services connectés" subtitle="Aucun service n'est connectable dans la version 0.0.1. Le lecteur local fonctionne sans eux." />
+      <PageHeader title="Services connectés" subtitle="Aucun compte n'est connectable pour l'instant. Les liens YouTube et Spotify sont reconnus via « Importer un lien ». Le lecteur local fonctionne sans eux." />
       <ul className="max-w-[720px] divide-y divide-line rounded-xl ring-1 ring-line">
         {(Object.keys(PROVIDER_NAMES) as (keyof typeof PROVIDER_NAMES)[]).map((id) => (
           <li key={id} className="flex items-start gap-4 px-5 py-4">

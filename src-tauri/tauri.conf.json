@@ -25,7 +25,7 @@
     "security": {
       "csp": {
         "default-src": "'self' ipc: http://ipc.localhost",
-        "img-src": "'self' data: korzcover: http://korzcover.localhost",
+        "img-src": "'self' data: korzcover: http://korzcover.localhost https://i.ytimg.com https://*.scdn.co https://*.spotifycdn.com",
         "style-src": "'self' 'unsafe-inline'",
         "font-src": "'self' data:",
         "connect-src": "ipc: http://ipc.localhost"

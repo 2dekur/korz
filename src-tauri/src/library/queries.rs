@@ -113,6 +113,23 @@ pub fn tracks_by_ids(c: &Connection, ids: &[i64]) -> AppResult<Vec<Track>> {
     Ok(out)
 }
 
+/// Tracks whose folded search text contains any of `words`: the candidates a link is scored against.
+pub fn tracks_matching(c: &Connection, words: &[String]) -> AppResult<Vec<Track>> {
+    if words.is_empty() {
+        return Ok(Vec::new());
+    }
+    let filter = vec!["t.search LIKE ? ESCAPE '\\'"; words.len()].join(" OR ");
+    let mut stmt = c.prepare(&format!("SELECT {TRACK_COLS} {TRACK_FROM} WHERE {filter} LIMIT 300"))?;
+    let rows = stmt.query_map(params_from_iter(words.iter().map(|w| like(w))), track)?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
+pub fn track_by_path(c: &Connection, path: &str) -> AppResult<Track> {
+    c.query_row(&format!("SELECT {TRACK_COLS} {TRACK_FROM} WHERE t.path = ?1"), [path], track)
+        .optional()?
+        .ok_or_else(|| AppError::NotFound("titre importé".into()))
+}
+
 fn album(r: &Row) -> rusqlite::Result<Album> {
     Ok(Album { title: r.get(0)?, artist: r.get(1)?, year: r.get(2)?, cover: r.get(3)?, track_count: r.get(4)?, duration_ms: r.get(5)? })
 }

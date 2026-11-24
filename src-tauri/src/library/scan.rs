@@ -50,7 +50,7 @@ pub fn rescan_all(db: &Db, covers: &Path, progress: &dyn Fn(ScanProgress)) -> Ap
 }
 
 /// Canonical, existing directory, without the `\\?\` prefix Windows adds.
-fn canonical_dir(raw: &str) -> AppResult<PathBuf> {
+pub fn canonical_dir(raw: &str) -> AppResult<PathBuf> {
     let path = fs::canonicalize(raw.trim()).map_err(|_| AppError::Invalid("Dossier introuvable".into()))?;
     if !path.is_dir() {
         return Err(AppError::Invalid("Ce chemin n'est pas un dossier".into()));

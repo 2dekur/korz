@@ -230,7 +230,8 @@ impl Engine {
             Ok(()) => {
                 self.status = Status::Playing;
                 self.error = None;
-                if let Err(e) = self.db.with(|c| queries::record_play(c, track.id)) {
+                // Negative ids: files played from a link, outside the library.
+                if track.id > 0 && let Err(e) = self.db.with(|c| queries::record_play(c, track.id)) {
                     log::warn!("historique non enregistré : {e}");
                 }
                 log::info!("lecture : {} ({})", track.title, track.format);

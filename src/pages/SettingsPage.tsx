@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
+import type { LinkBehavior, LinkSettings } from "@/types";
+import { cn } from "@/lib/cn";
 import { FolderOpen, RefreshCw, Trash2 } from "lucide-react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
@@ -68,6 +71,8 @@ export function SettingsPage() {
         </div>
       </Section>
 
+      <LinksSection />
+
       <UpdatesSection />
 
       <Section title="Formats pris en charge" description="Lecture et métadonnées vérifiées sur de vrais fichiers.">
@@ -92,6 +97,68 @@ export function SettingsPage() {
         )}
       </Section>
     </>
+  );
+}
+
+const BEHAVIORS: { id: LinkBehavior; label: string; description: string }[] = [
+  { id: "auto", label: "Automatique", description: "Lit tout de suite si la correspondance est sûre et unique ; sinon, demande." },
+  { id: "always_confirm", label: "Toujours confirmer", description: "Affiche toujours la carte du lien avant d'agir." },
+  { id: "instant", label: "Lecture immédiate", description: "Lit toujours la meilleure correspondance, sans demander." },
+];
+
+function LinksSection() {
+  const q = useQuery(() => api.linkSettings(), []);
+  const [current, setCurrent] = useState<LinkSettings | null>(null);
+  const s = current ?? q.data;
+  const save = async (run: () => Promise<LinkSettings>) => {
+    try {
+      setCurrent(await run());
+    } catch (err) {
+      toast.error("Réglage non enregistré", { description: errorMessage(err) });
+    }
+  };
+  const chooseDir = async () => {
+    const path = await open({ directory: true, multiple: false, title: "Choisir le dossier d'import" });
+    if (typeof path === "string") await save(() => api.linkSetImportDir(path));
+  };
+  return (
+    <Section title="Liens" description="Ce que fait KORZ quand vous collez un lien dans la recherche ou la page « Importer un lien ».">
+      <div role="radiogroup" aria-label="Comportement des liens" className="flex flex-col gap-1.5">
+        {BEHAVIORS.map((b) => (
+          <button
+            key={b.id}
+            type="button"
+            role="radio"
+            aria-checked={s?.behavior === b.id}
+            disabled={!s}
+            onClick={() => void save(() => api.linkSetBehavior(b.id))}
+            className={cn(
+              "flex items-start gap-3 rounded-lg px-3.5 py-2.5 text-left ring-1 transition-colors",
+              s?.behavior === b.id ? "bg-white/[0.05] ring-white/20" : "ring-line hover:bg-white/[0.03]",
+            )}
+          >
+            <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full ring-1", s?.behavior === b.id ? "ring-accent" : "ring-white/30")}>
+              {s?.behavior === b.id && <span className="size-2 rounded-full bg-accent" />}
+            </span>
+            <span>
+              <span className="block text-[13.5px] font-medium">{b.label}</span>
+              <span className="block text-[12.5px] text-muted">{b.description}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="mt-5 flex items-center gap-3">
+        <FolderOpen className="size-4 shrink-0 text-faint" />
+        <div className="min-w-0 flex-1">
+          <div className="text-[12px] text-faint">Dossier d'import des liens directs{s?.isDefaultDir ? " (par défaut)" : ""}</div>
+          <div className="truncate text-[13px]">{s?.importDir ?? "…"}</div>
+        </div>
+        <Button onClick={() => void chooseDir()} disabled={!s}>
+          Changer…
+        </Button>
+      </div>
+      <p className="mt-2 text-[12px] text-faint">Ce dossier est ajouté à la bibliothèque au premier import.</p>
+    </Section>
   );
 }
 

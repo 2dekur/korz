@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { useNavigation, useRoute } from "@/store/navigation";
 import { useUi } from "@/store/ui";
+import { isLink, openLink } from "@/store/smartlink";
 import { IconButton } from "@/components/ui/IconButton";
 
 export function TopBar() {
@@ -47,10 +48,22 @@ export function TopBar() {
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
-            if (route.name !== "search") navigate({ name: "search" });
+            if (route.name !== "search" && !isLink(e.target.value)) navigate({ name: "search" });
           }}
-          onKeyDown={(e) => e.key === "Escape" && setSearch("")}
-          placeholder="Rechercher dans la bibliothèque"
+          onPaste={(e) => {
+            const text = e.clipboardData.getData("text");
+            if (!isLink(text)) return;
+            e.preventDefault();
+            void openLink(text);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setSearch("");
+            if (e.key === "Enter" && isLink(search)) {
+              void openLink(search);
+              setSearch("");
+            }
+          }}
+          placeholder="Rechercher ou coller un lien"
           aria-label="Rechercher dans la bibliothèque"
           spellCheck={false}
           className="h-9 w-full rounded-full bg-white/[0.06] pl-9 pr-9 text-[13px] text-fg outline-none ring-1 ring-transparent transition placeholder:text-faint focus:bg-white/[0.08] focus:ring-white/15"

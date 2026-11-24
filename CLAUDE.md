@@ -29,7 +29,11 @@ src-tauri/src/
   audio/            KORZ AUDIO ENGINE
     mod.rs          thread dédié (la sortie audio n'est pas Send) ; commandes par canal ; un rodio::Player par titre ; événements player://state et player://position (250 ms)
     queue.rs        file d'attente pure + tests
-  smartlink.rs      KORZ SMART LINK : reconnaissance hors ligne des liens Spotify/YouTube/Deezer/Apple Music/SoundCloud + tests
+  smartlink/        KORZ SMART LINK
+    mod.rs          reconnaissance hors ligne des liens Spotify/YouTube/Deezer/Apple Music/SoundCloud + tests
+    matching.rs     nettoyage des titres (« (Official Video) »…), score 0-1 et confiance high/medium/low contre la bibliothèque (même repli que la recherche) + tests
+    direct.rs       liens audio directs : Content-Type, signature des premiers octets, nom (RFC 6266), .part + renommage atomique, doublons SHA-256, 500 Mo max + tests
+    pipeline.rs     classification, oEmbed YouTube/Spotify, correspondances locales, décision selon le réglage (auto / always_confirm / instant), cache de lecture, import + tests
   updates.rs        mise à jour auto : vérification et installation de la release GitHub signée
 src/
   main.tsx          init lecteur + écouteurs d'événements, puis render
@@ -56,6 +60,15 @@ Données : `%APPDATA%\com.korz.app\korz.db` ; pochettes : `%LOCALAPPDATA%\com.ko
 | Front | React 19, Zustand, `@tanstack/react-virtual`, Radix (slider, switch, tooltip), `sonner`, Lucide | listes de milliers de titres, accessibilité |
 
 Formats vérifiés sur de vrais fichiers (test `formats_read_decode_and_seek`) : MP3, FLAC, WAV, AAC (ADTS), M4A AAC, M4A ALAC, OGG Vorbis — tags, durée, pochette, décodage, seek. Non pris en charge : Opus, WMA.
+
+## Smart Link (v0.0.2)
+
+- Coller un lien dans la recherche (événement paste ou Entrée) ou sur « Importer un lien » → `link_resolve` → lecture directe ou carte de confirmation (`components/link/LinkCard.tsx`, `store/smartlink.ts`).
+- **YouTube / Spotify** : métadonnées via leur oEmbed public (titre, auteur, vignette), puis **correspondance dans la bibliothèque locale**. KORZ ne lit ni ne télécharge jamais leur contenu ; sans correspondance, la carte propose « Ouvrir dans … » (opener limité à `youtube.com` et `open.spotify.com`). Spotify oEmbed ne donne pas l'artiste → confiance « medium » au mieux.
+- **Lien audio direct** : refus si `text/*`, HTML, JSON, image, vidéo ; `audio/*` → confiance high, type générique (octet-stream, absent) → medium ; le contenu doit être reconnu par sa signature (MP3, FLAC, WAV, OGG, M4A, AAC). Lecture : cache `<app cache>/links/<sha256(url)>.<ext>` (nettoyé après 24 h), titre à id négatif (jamais dans favoris, playlists, historique). Import : `<dossier d'import>/<nom>.<horodatage>.part` puis renommage atomique ; fichier identique déjà présent = doublon réutilisé.
+- Décision : aucune correspondance → carte ; `instant` → lit la meilleure ; `always_confirm` → carte ; `auto` → lit seulement s'il y a **une seule** correspondance de confiance **high**.
+- Réglages (table `settings`) : `link_behavior` (`auto` par défaut), `import_dir` (défaut `<Musique>\KORZ Music`). Le dossier d'import devient un dossier de bibliothèque au premier import ; un dossier qui en contient déjà un est refusé.
+- CSP `img-src` : `i.ytimg.com`, `*.scdn.co`, `*.spotifycdn.com` pour les vignettes.
 
 ## Conventions
 
@@ -94,10 +107,10 @@ Pilotage de l'app pour les tests : lancer avec `WEBVIEW2_ADDITIONAL_BROWSER_ARGU
 - Les noms de fichiers publiés ne doivent pas contenir d'espace : GitHub les renomme et l'URL de `latest.json` casserait.
 - Les installations Korz 0.0.6/0.0.7 (ancienne base) ne passent pas à 0.0.1 : version inférieure.
 
-## Limites connues (v0.0.1)
+## Limites connues
 
 - AAC brut (.aac) : pas d'index, durée estimée d'après le débit (écart de quelques %).
 - Pas encore d'aléatoire, de répétition, de réorganisation de la file ni de playlists réordonnables.
 - Pas de surveillance des dossiers : « Réanalyser » dans Paramètres après des ajouts.
-- Smart Link reconnaît les liens sans contacter les services ; KORZ CONNECT (API officielles) n'est pas implémenté.
+- Smart Link : pas de correspondance par durée (oEmbed ne la donne pas) ; Deezer, Apple Music, SoundCloud reconnus mais non pris en charge ; KORZ CONNECT (comptes, API officielles) n'est pas implémenté.
 - Base illisible au démarrage = l'app ne démarre pas (message dans le journal).

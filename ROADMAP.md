@@ -14,7 +14,14 @@
 - Mises à jour automatiques : KORZ vérifie au lancement si une nouvelle version est publiée et l'installe en un clic (aussi dans Paramètres > Mises à jour).
 - Retirés par rapport aux versions précédentes : lecture en ligne YouTube (contraire aux conditions de YouTube), catalogue Deezer, paroles, licences. Les anciennes versions Korz 0.0.x ne se mettent pas à jour vers KORZ Music : désinstallez-les puis installez celle-ci.
 
-## Prochaine version : v0.0.2 — Lecteur complet
+### v0.0.2 — Smart Link
+- Collez un lien dans la barre de recherche (ou sur « Importer un lien ») : KORZ reconnaît sa provenance et agit selon votre réglage.
+- Liens audio directs (MP3, FLAC, WAV, AAC, M4A, OGG) : lecture immédiate, ajout à la file d'attente ou import permanent dans votre bibliothèque. Les pages web et les faux fichiers sont refusés, les doublons détectés, et un téléchargement interrompu ne laisse jamais de fichier abîmé.
+- Liens YouTube et Spotify : KORZ lit leurs informations publiques (titre, artiste, pochette) et retrouve le morceau dans votre bibliothèque. Il ne lit ni ne télécharge jamais le contenu de ces services.
+- Carte de confirmation : pochette, source, format, niveau de certitude, choix parmi plusieurs correspondances.
+- Nouveau réglage « Liens » : Automatique (par défaut), Toujours confirmer ou Lecture immédiate, et choix du dossier d'import.
+
+## À suivre — Lecteur complet
 - [ ] Aléatoire et répétition (moteur Rust), réorganisation et retrait dans la file d'attente.
 - [ ] Surveillance des dossiers (ajouts / suppressions détectés sans réanalyse manuelle).
 - [ ] Réordonner les titres d'une playlist (glisser-déposer).
@@ -23,4 +30,3 @@
 ## Ensuite
 - v0.0.3 : genres, tri et filtres de la bibliothèque, édition non destructive des métadonnées affichées.
 - v0.0.4 : KORZ CONNECT — premier service via API officielle (métadonnées et playlists), KORZ COMPLIANCE (capacités par service).
-- v0.0.5 : Smart Link → correspondance avec la bibliothèque locale.

@@ -98,10 +98,40 @@ export interface PlayerPosition {
   durationMs: number;
 }
 
-export interface LinkInfo {
-  provider: "spotify" | "youtube" | "deezer" | "apple-music" | "soundcloud";
-  kind: "track" | "album" | "playlist" | "artist" | "video" | "short";
-  id: string | null;
+export type LinkBehavior = "auto" | "always_confirm" | "instant";
+export type Confidence = "high" | "medium" | "low";
+export type LinkSource = "direct_audio" | "youtube" | "spotify" | "unsupported";
+
+export interface LinkCandidate {
+  kind: "local" | "direct";
+  track: Track | null;
+  confidence: Confidence;
+  score: number;
+}
+
+export interface LinkResolution {
+  url: string;
+  source: LinkSource;
+  provider: string | null;
+  kind: string | null;
+  meta: { title: string | null; artist: string | null; artworkUrl: string | null; format: string | null; sizeBytes: number | null };
+  /** Best first. */
+  candidates: LinkCandidate[];
+  decision: "play" | "confirm";
+  importable: boolean;
+  openUrl: string | null;
+  message: string | null;
+}
+
+export interface LinkSettings {
+  behavior: LinkBehavior;
+  importDir: string;
+  isDefaultDir: boolean;
+}
+
+export interface ImportResult {
+  track: Track;
+  duplicate: boolean;
 }
 
 export interface AppInfo {

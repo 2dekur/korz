@@ -1,6 +1,10 @@
 //! KORZ SMART LINK — recognises music links offline. It never fetches the page:
 //! resolving metadata needs each provider's official API (KORZ CONNECT, later).
 
+pub mod direct;
+pub mod matching;
+pub mod pipeline;
+
 use serde::Serialize;
 
 use crate::error::{AppError, AppResult};
