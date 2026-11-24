@@ -17,8 +17,8 @@
 @keyframes fade-in {
   from { opacity: 0; }
 }
-@keyframes pop-in {
-  from { opacity: 0; transform: translate(-50%, -48%) scale(0.97); }
+@keyframes route-in {
+  from { opacity: 0; transform: translateY(6px); }
 }
 
 html,

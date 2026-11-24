@@ -1,19 +1,18 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { motion } from "framer-motion";
+import { cn } from "@/lib/cn";
 import { useNavigation } from "@/store/navigation";
+import { useUi } from "@/store/ui";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { ScrollContext } from "./ScrollContext";
 import { PlayerBar } from "@/components/player/PlayerBar";
 import { QueuePanel } from "@/components/player/QueuePanel";
-import { LyricsPanel } from "@/components/player/LyricsPanel";
-import { useUi } from "@/store/ui";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const scrollRef = useRef<HTMLElement>(null);
   const cursor = useNavigation((s) => s.cursor);
   const routeKey = useNavigation((s) => JSON.stringify(s.history[s.cursor]));
-  const panel = useUi((s) => s.panel);
+  const queueOpen = useUi((s) => s.queueOpen);
 
   // Each navigation starts at the top, like a native app switching views.
   useLayoutEffect(() => {
@@ -22,26 +21,21 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div
-      className={`grid h-screen ${panel ? "grid-cols-[248px_minmax(0,1fr)_auto]" : "grid-cols-[248px_minmax(0,1fr)]"} grid-rows-[minmax(0,1fr)_auto] bg-bg text-fg`}
+      className={cn(
+        "grid h-screen grid-rows-[minmax(0,1fr)_auto] bg-bg text-fg",
+        queueOpen ? "grid-cols-[232px_minmax(0,1fr)_320px]" : "grid-cols-[232px_minmax(0,1fr)]",
+      )}
     >
       <Sidebar />
       <ScrollContext.Provider value={scrollRef}>
-        <main ref={scrollRef} className="relative overflow-y-auto overflow-x-hidden bg-surface/40 [scrollbar-gutter:stable]">
+        <main ref={scrollRef} className="relative overflow-y-auto overflow-x-hidden bg-surface/50 [scrollbar-gutter:stable]">
           <TopBar />
-          {/* Enter-only fade: no exit animation, so the next view is on screen in the same frame. */}
-          <motion.div
-            key={routeKey}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="-mt-16"
-          >
+          <div key={routeKey} className="px-8 pb-14 animate-[route-in_180ms_cubic-bezier(0.22,1,0.36,1)]">
             {children}
-          </motion.div>
+          </div>
         </main>
       </ScrollContext.Provider>
-      {panel === "queue" && <QueuePanel />}
-      {panel === "lyrics" && <LyricsPanel />}
+      {queueOpen && <QueuePanel />}
       <PlayerBar />
     </div>
   );

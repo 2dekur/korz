@@ -1,48 +1,66 @@
-import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { cn } from "@/lib/cn";
-import { useNavigation } from "@/store/navigation";
+import { useEffect, useRef } from "react";
+import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { useNavigation, useRoute } from "@/store/navigation";
+import { useUi } from "@/store/ui";
 import { IconButton } from "@/components/ui/IconButton";
-import { Tooltip } from "@/components/ui/Tooltip";
-import { SearchBox } from "@/components/search/SearchBox";
-import { useScrollContainer } from "./ScrollContext";
 
 export function TopBar() {
   const canBack = useNavigation((s) => s.cursor > 0);
   const canForward = useNavigation((s) => s.cursor < s.history.length - 1);
-  const { back, forward } = useNavigation.getState();
-  const scrollRef = useScrollContainer();
-  const [scrolled, setScrolled] = useState(false);
+  const { back, forward, navigate } = useNavigation.getState();
+  const search = useUi((s) => s.search);
+  const setSearch = useUi((s) => s.setSearch);
+  const route = useRoute();
+  const input = useRef<HTMLInputElement>(null);
 
-  // Transparent over page headers, frosted once content scrolls underneath.
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const onScroll = () => setScrolled(el.scrollTop > 8);
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, [scrollRef]);
+    if (route.name === "search") input.current?.focus();
+  }, [route.name]);
+
+  // Ctrl+K / Ctrl+F: jump to search from anywhere.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "f")) {
+        e.preventDefault();
+        navigate({ name: "search" });
+        input.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navigate]);
 
   return (
-    <div
-      className={cn(
-        "sticky top-0 z-20 flex h-16 items-center gap-4 px-8 transition-[background-color,box-shadow] duration-200",
-        scrolled && "bg-bg/75 shadow-[0_1px_0_var(--color-line)] backdrop-blur-xl",
-      )}
-    >
-      <div className="flex gap-2">
-        <Tooltip label="Retour" side="bottom">
-          <IconButton label="Retour" onClick={back} disabled={!canBack} className="bg-black/40 backdrop-blur-md">
-            <ChevronLeft className="size-[18px]" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip label="Suivant" side="bottom">
-          <IconButton label="Page suivante" onClick={forward} disabled={!canForward} className="bg-black/40 backdrop-blur-md">
-            <ChevronRight className="size-[18px]" />
-          </IconButton>
-        </Tooltip>
+    <div className="sticky top-0 z-20 flex h-14 items-center gap-3 bg-[color-mix(in_srgb,var(--color-bg)_72%,transparent)] px-6 backdrop-blur-md">
+      <div className="flex gap-1">
+        <IconButton label="Précédent" onClick={back} disabled={!canBack} className="bg-white/[0.04]">
+          <ChevronLeft className="size-[18px]" />
+        </IconButton>
+        <IconButton label="Suivant" onClick={forward} disabled={!canForward} className="bg-white/[0.04]">
+          <ChevronRight className="size-[18px]" />
+        </IconButton>
       </div>
-      <SearchBox />
+      <label className="relative flex w-full max-w-[380px] items-center">
+        <Search className="pointer-events-none absolute left-3 size-4 text-faint" />
+        <input
+          ref={input}
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            if (route.name !== "search") navigate({ name: "search" });
+          }}
+          onKeyDown={(e) => e.key === "Escape" && setSearch("")}
+          placeholder="Rechercher dans la bibliothèque"
+          aria-label="Rechercher dans la bibliothèque"
+          spellCheck={false}
+          className="h-9 w-full rounded-full bg-white/[0.06] pl-9 pr-9 text-[13px] text-fg outline-none ring-1 ring-transparent transition placeholder:text-faint focus:bg-white/[0.08] focus:ring-white/15"
+        />
+        {search && (
+          <button type="button" aria-label="Effacer la recherche" onClick={() => setSearch("")} className="absolute right-3 text-faint hover:text-fg">
+            <X className="size-4" />
+          </button>
+        )}
+      </label>
     </div>
   );
 }

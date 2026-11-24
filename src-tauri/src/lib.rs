@@ -1,92 +1,86 @@
-mod stream;
+//! KORZ CORE — startup, state, plugins, commands and shutdown.
 
+mod audio;
+mod commands;
+mod db;
+mod error;
+mod library;
+mod smartlink;
+
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-#[tauri::command]
-fn get_hwid() -> Result<String, String> {
-    use sha2::{Digest, Sha256};
-    let out = std::process::Command::new("reg")
-        .args(["query", r"HKLM\SOFTWARE\Microsoft\Cryptography", "/v", "MachineGuid"])
-        .output()
-        .map_err(|e| e.to_string())?;
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    let guid = stdout
-        .lines()
-        .find(|l| l.contains("MachineGuid"))
-        .and_then(|l| l.split_whitespace().last())
-        .unwrap_or("unknown");
-    let hash = Sha256::digest(guid.as_bytes());
-    Ok(format!("{:x}", hash)[..32].to_string())
-}
+use tauri::{Manager, RunEvent};
 
-use tauri::webview::WebviewWindowBuilder;
-use tauri::Manager;
-use tauri_plugin_store::StoreExt;
+use commands::AppState;
 
-/// Reads `settings.hardwareAcceleration` from the same store file the frontend writes.
-/// Defaults to `true` when the store or key is missing.
-fn hardware_acceleration_enabled(app: &tauri::App) -> bool {
-    app.store("settings.json")
-        .ok()
-        .and_then(|store| store.get("settings"))
-        .and_then(|settings| settings.get("hardwareAcceleration")?.as_bool())
-        .unwrap_or(true)
-}
+const DEFAULT_VOLUME: f32 = 0.8;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        // `korzstream://localhost/<videoId>`: range-served full-length audio (see stream.rs).
-        .register_asynchronous_uri_scheme_protocol("korzstream", |ctx, request, responder| {
-            let s = ctx.app_handle().state::<Arc<stream::Streams>>().inner().clone();
-            tauri::async_runtime::spawn(async move { responder.respond(s.serve(request).await) });
-        })
-        .invoke_handler(tauri::generate_handler![stream::resolve_stream, stream::prefetch_stream, stream::ytm_lyrics, stream::lyrics_search, get_hwid])
-        .plugin(tauri_plugin_http::init())
+    let app = tauri::Builder::default()
+        // Logs go to stdout and to <app log dir>/KORZ Music.log (rotated at 2 MB).
+        .plugin(tauri_plugin_log::Builder::new().level(log::LevelFilter::Info).max_file_size(2_000_000).build())
         .plugin(tauri_plugin_window_state::Builder::new().build())
-        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
-        // After fs: restores folder grants (fs + asset protocol) made through the dialog in earlier sessions.
-        .plugin(tauri_plugin_persisted_scope::init())
-        .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .register_uri_scheme_protocol("korzcover", |ctx, request| commands::cover_response(ctx.app_handle(), &request))
         .setup(|app| {
-            // Managed before the window exists, so the protocol and commands always find it.
-            let cache = app.path().app_cache_dir().ok().map(|d| d.join("rustypipe"));
-            let streams = Arc::new(stream::Streams::new(cache));
-            app.manage(streams.clone());
-            tauri::async_runtime::spawn(async move { streams.discover().await });
-
-            let hw_accel = hardware_acceleration_enabled(app);
-            let config = app
-                .config()
-                .app
-                .windows
-                .iter()
-                .find(|w| w.label == "main")
-                .cloned()
-                .expect("main window missing from tauri.conf.json");
-
-            #[allow(unused_mut)]
-            let mut builder = WebviewWindowBuilder::from_config(app.handle(), &config)?;
-
-            // WebView2 browser args are fixed at creation, so the toggle applies on next launch.
-            #[cfg(windows)]
-            if !hw_accel {
-                // Setting args replaces Tauri's WebView2 defaults, so they are repeated here.
-                builder = builder.additional_browser_args(
-                    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu",
-                );
-            }
-            #[cfg(not(windows))]
-            let _ = hw_accel;
-
-            builder.build()?;
+            let data_dir = app.path().app_data_dir()?;
+            let covers = app.path().app_cache_dir()?.join("covers");
+            std::fs::create_dir_all(&data_dir)?;
+            std::fs::create_dir_all(&covers)?;
+            let db = Arc::new(db::Db::open(&data_dir.join("korz.db"))?);
+            let volume = db
+                .setting("volume")?
+                .and_then(|v| v.parse::<f32>().ok())
+                .filter(|v| (0.0..=1.0).contains(v))
+                .unwrap_or(DEFAULT_VOLUME);
+            let engine = audio::AudioEngine::start(app.handle().clone(), db.clone(), volume);
+            app.manage(AppState { db, engine, covers, scanning: Arc::new(AtomicBool::new(false)) });
+            log::info!("KORZ Music {} démarré ({})", app.package_info().version, data_dir.display());
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .invoke_handler(tauri::generate_handler![
+            commands::app_info,
+            commands::library_add_folder,
+            commands::library_rescan,
+            commands::library_folders,
+            commands::library_remove_folder,
+            commands::library_stats,
+            commands::library_tracks,
+            commands::library_albums,
+            commands::library_recent_albums,
+            commands::library_artists,
+            commands::history_recent,
+            commands::favorite_toggle,
+            commands::playlists_list,
+            commands::playlist_get,
+            commands::playlist_create,
+            commands::playlist_rename,
+            commands::playlist_delete,
+            commands::playlist_add,
+            commands::playlist_remove,
+            commands::player_play,
+            commands::player_enqueue,
+            commands::player_jump,
+            commands::player_toggle,
+            commands::player_next,
+            commands::player_previous,
+            commands::player_seek,
+            commands::player_set_volume,
+            commands::player_state,
+            commands::smartlink_parse,
+        ])
+        .build(tauri::generate_context!())
+        .expect("échec du démarrage de KORZ Music");
+
+    app.run(|handle, event| {
+        if let RunEvent::Exit = event {
+            if let Some(state) = handle.try_state::<AppState>() {
+                state.engine.shutdown();
+            }
+            log::info!("KORZ Music fermé");
+        }
+    });
 }

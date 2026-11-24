@@ -1,101 +1,129 @@
-export type Source = "deezer" | "itunes" | "local";
-
-/** `id` is prefixed by source (`dz-27`, `it-909253`); local files have no artist id. */
-export interface ArtistRef {
-  id?: string;
-  name: string;
-}
+/** Mirrors the serde DTOs of src-tauri/src/library/models.rs and audio/mod.rs (camelCase). */
 
 export interface Track {
-  /** `dz-<id>`, `it-<id>` or `local:<absolute path>`. */
-  id: string;
+  id: number;
+  path: string;
   title: string;
-  artists: ArtistRef[];
-  album?: { id?: string; title: string };
-  cover?: string;
-  coverLarge?: string;
-  /** Full track length in seconds; 0 when unknown (local files before first play). */
-  duration: number;
-  explicit: boolean;
-  /** Full credits (all main + featured artists) already known, no need to fetch them. */
-  credited?: boolean;
-  /** Deezer popularity (0-1 000 000), used to drop low-ranked duplicates of the same title. */
-  rank?: number;
-  /** Remote: preview URL. Local: absolute file path (converted to an asset URL at play time). */
-  src: string;
-  source: Source;
-}
-
-export interface Artist {
-  id: string;
-  name: string;
-  picture?: string;
-  pictureLarge?: string;
-  fans?: number;
+  artist: string;
+  album: string;
+  albumArtist: string;
+  genre: string | null;
+  trackNo: number | null;
+  discNo: number | null;
+  year: number | null;
+  durationMs: number;
+  format: string;
+  cover: string | null;
+  favorite: boolean;
 }
 
 export interface Album {
-  id: string;
   title: string;
-  cover?: string;
-  year?: string;
-  type?: string;
+  artist: string;
+  year: number | null;
+  cover: string | null;
+  trackCount: number;
+  durationMs: number;
 }
 
-export interface ArtistPageData {
-  artist: Artist;
-  top: Track[];
-  albums: Album[];
+export interface Artist {
+  name: string;
+  albumCount: number;
+  trackCount: number;
+  cover: string | null;
 }
 
-export interface AlbumPageData {
-  album: Album;
-  coverLarge?: string;
-  artists: ArtistRef[];
-  label?: string;
+export interface Folder {
+  id: number;
+  path: string;
+  trackCount: number;
+}
+
+export interface Playlist {
+  id: number;
+  name: string;
+  trackCount: number;
+  durationMs: number;
+  cover: string | null;
+}
+
+export interface PlaylistDetail {
+  playlist: Playlist;
   tracks: Track[];
+  /** Same length as `tracks`: the row key used to remove an entry. */
+  positions: number[];
 }
 
-export interface SearchResults {
-  tracks: Track[];
-  artists: Artist[];
-  topArtist?: Artist;
-  suggestions: string[];
+export interface LibraryStats {
+  tracks: number;
+  albums: number;
+  artists: number;
+  durationMs: number;
 }
 
-export interface HomeData {
-  tracks: Track[];
-  artists: Artist[];
+export interface ScanSummary {
+  added: number;
+  updated: number;
+  removed: number;
+  unchanged: number;
+  failed: number;
 }
 
-export type AudioQuality = "low" | "normal" | "high" | "lossless";
-
-export interface Profile {
-  displayName: string;
-  /** Avatar hue (0-360). */
-  hue: number;
+export interface ScanProgress {
+  folder: string;
+  done: number;
+  total: number;
 }
 
-export interface AudioSources {
-  /** Full-length audio resolved by the Rust backend (YouTube Music via Piped/Invidious). */
-  fullStream: boolean;
-  /** Deezer 30 s previews, only when every full-length source failed. On by default. */
-  previewFallback: boolean;
+export interface TrackQuery {
+  search?: string;
+  favorites?: boolean;
+  album?: string;
+  albumArtist?: string;
+  artist?: string;
 }
 
-export interface Settings {
-  audioQuality: AudioQuality;
-  /** Show a French translation under each lyric line. */
-  lyricsTranslate: boolean;
-  sources: AudioSources;
-  hardwareAcceleration: boolean;
-  profile: Profile;
+export type PlayerStatus = "idle" | "playing" | "paused";
+
+export interface PlayerState {
+  status: PlayerStatus;
+  queue: Track[];
+  index: number | null;
+  volume: number;
+  error: string | null;
+}
+
+export interface PlayerPosition {
+  positionMs: number;
+  durationMs: number;
+}
+
+export interface LinkInfo {
+  provider: "spotify" | "youtube" | "deezer" | "apple-music" | "soundcloud";
+  kind: "track" | "album" | "playlist" | "artist" | "video" | "short";
+  id: string | null;
+}
+
+export interface AppInfo {
+  version: string;
+  dataDir: string;
+  logDir: string;
+}
+
+export interface AppErrorPayload {
+  code: string;
+  message: string;
 }
 
 export type Route =
   | { name: "home" }
   | { name: "search" }
-  | { name: "library" }
-  | { name: "settings" }
-  | { name: "artist"; id: string }
-  | { name: "album"; id: string };
+  | { name: "library"; tab?: "tracks" | "albums" | "artists" }
+  | { name: "album"; title: string; artist: string }
+  | { name: "artist"; artist: string }
+  | { name: "playlists" }
+  | { name: "playlist"; id: number }
+  | { name: "favorites" }
+  | { name: "import" }
+  | { name: "services" }
+  | { name: "settings" };

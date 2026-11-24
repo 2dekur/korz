@@ -9,10 +9,9 @@ interface NavigationState {
   forward: () => void;
 }
 
-const sameRoute = (a: Route, b: Route) =>
-  a.name === b.name && (!("id" in a) || ("id" in b && a.id === b.id));
+const sameRoute = (a: Route, b: Route) => JSON.stringify(a) === JSON.stringify(b);
 
-/** In-memory router: switching view is a state change, nothing is fetched or remounted outside the page. */
+/** In-memory router: switching view is a state change, nothing is reloaded outside the page. */
 export const useNavigation = create<NavigationState>((set, get) => ({
   history: [{ name: "home" }],
   cursor: 0,

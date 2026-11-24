@@ -1,31 +1,24 @@
-import { CheckCircle2, PlusCircle } from "lucide-react";
+import { Heart } from "lucide-react";
 import type { Track } from "@/types";
 import { cn } from "@/lib/cn";
-import { useIsLiked, useLibrary } from "@/store/library";
-import { Tooltip } from "@/components/ui/Tooltip";
+import { toggleFavorite } from "@/store/library";
 
-/** `+` adds to liked tracks; a filled check shows it is liked. */
 export function LikeButton({ track, className }: { track: Track; className?: string }) {
-  const liked = useIsLiked(track.id);
-  const label = liked ? "Retirer des Titres likés" : "Ajouter aux Titres likés";
+  const label = track.favorite ? "Retirer des favoris" : "Ajouter aux favoris";
   return (
-    <Tooltip label={label}>
-      <button
-        type="button"
-        aria-label={label}
-        aria-pressed={liked}
-        onClick={(e) => {
-          e.stopPropagation();
-          useLibrary.getState().toggleLike(track);
-        }}
-        className={cn(
-          "flex size-7 items-center justify-center rounded-full transition duration-150 active:scale-90",
-          liked ? "text-accent" : "text-muted hover:scale-105 hover:text-fg",
-          className,
-        )}
-      >
-        {liked ? <CheckCircle2 className="size-[18px] fill-accent text-bg" /> : <PlusCircle className="size-[18px]" />}
-      </button>
-    </Tooltip>
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      aria-pressed={track.favorite}
+      onClick={() => void toggleFavorite(track.id)}
+      className={cn(
+        "flex size-7 items-center justify-center rounded-full transition-colors duration-150",
+        track.favorite ? "text-accent" : "text-muted hover:text-fg",
+        className,
+      )}
+    >
+      <Heart className={cn("size-4", track.favorite && "fill-current")} />
+    </button>
   );
 }

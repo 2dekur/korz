@@ -1,144 +1,85 @@
-import { useState } from "react";
-import { FolderPlus, Loader2, Play, RefreshCw, X } from "lucide-react";
-import { isTauri } from "@tauri-apps/api/core";
-import { toast } from "sonner";
-import type { Track } from "@/types";
+import { Library } from "lucide-react";
+import { api } from "@/services/api";
+import { useQuery } from "@/hooks/useQuery";
 import { cn } from "@/lib/cn";
-import { useLibrary } from "@/store/library";
-import { usePlayer } from "@/store/player";
-import { pickFolder } from "@/services/localFiles";
-import { TrackList } from "@/components/track/TrackList";
-import { ArtistGrid } from "@/components/track/ArtistCard";
+import { plural } from "@/lib/format";
+import { useNavigation } from "@/store/navigation";
+import { playTracks } from "@/store/player";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { TrackTable } from "@/components/track/TrackTable";
+import { AlbumGrid, ArtistGrid } from "@/components/track/CollectionGrid";
+import { AddFolderButton } from "@/components/library/AddFolderButton";
+import { PlayButton } from "@/components/ui/Button";
+import { EmptyState, ErrorState, Spinner } from "@/components/ui/States";
 
-type Tab = "liked" | "artists" | "local";
+type Tab = "tracks" | "albums" | "artists";
 const TABS: { id: Tab; label: string }[] = [
-  { id: "liked", label: "Titres likés" },
+  { id: "albums", label: "Albums" },
   { id: "artists", label: "Artistes" },
-  { id: "local", label: "Fichiers locaux" },
+  { id: "tracks", label: "Titres" },
 ];
 
-let lastTab: Tab = "liked"; // remembered across page switches
-
-export function LibraryPage() {
-  const [tab, setTabState] = useState<Tab>(lastTab);
-  const setTab = (t: Tab) => setTabState((lastTab = t));
-  const liked = useLibrary((s) => s.liked);
-  const followed = useLibrary((s) => s.followed);
-  const local = useLibrary((s) => s.local);
-
+export function LibraryPage({ tab = "albums" }: { tab?: Tab }) {
+  const navigate = useNavigation((s) => s.navigate);
+  const stats = useQuery(() => api.stats(), []);
+  if (stats.data?.tracks === 0)
+    return (
+      <EmptyState icon={Library} title="Aucun titre pour l'instant">
+        <p>Ajoutez un dossier de musique pour remplir votre bibliothèque.</p>
+        <div className="mt-6 flex justify-center">
+          <AddFolderButton />
+        </div>
+      </EmptyState>
+    );
   return (
-    <div className="px-8 pb-12 pt-20">
-      <h1 className="font-display text-[32px] font-bold tracking-[-0.025em]">Bibliothèque</h1>
-      <div className="mt-5 flex gap-2" role="tablist">
+    <>
+      <PageHeader title="Ma bibliothèque" subtitle={stats.data && `${plural(stats.data.tracks, "titre", "titres")} · ${plural(stats.data.albums, "album", "albums")}`}>
+        <AddFolderButton variant="ghost" />
+      </PageHeader>
+      <div role="tablist" aria-label="Vue de la bibliothèque" className="mb-6 flex gap-1.5">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             role="tab"
             aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => navigate({ name: "library", tab: t.id })}
             className={cn(
-              "h-8 rounded-full px-4 text-[13px] font-medium transition-colors duration-150",
+              "h-8 rounded-full px-4 text-[13px] font-medium transition-colors",
               tab === t.id ? "bg-fg text-bg" : "bg-white/[0.06] text-fg hover:bg-white/[0.1]",
             )}
           >
             {t.label}
-            <span className={cn("ml-1.5 tabular-nums", tab === t.id ? "text-bg/60" : "text-faint")}>
-              {t.id === "liked" ? liked.length : t.id === "artists" ? followed.length : local.length}
-            </span>
           </button>
         ))}
       </div>
-
-      <div className="mt-8">
-        {tab === "liked" && <TracksTab tracks={liked} empty="Les titres ajoutés avec + apparaissent ici." />}
-        {tab === "artists" &&
-          (followed.length ? <ArtistGrid artists={followed} /> : <Empty>Abonnez-vous à des artistes depuis la recherche ou leur page.</Empty>)}
-        {tab === "local" && <LocalTab />}
-      </div>
-    </div>
-  );
-}
-
-function TracksTab({ tracks, empty }: { tracks: Track[]; empty: string }) {
-  const playQueue = usePlayer((s) => s.playQueue);
-  if (!tracks.length) return <Empty>{empty}</Empty>;
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => playQueue(tracks, 0)}
-        className="mb-6 flex h-10 items-center gap-2 rounded-full bg-accent px-5 text-[13px] font-semibold text-bg transition-transform duration-150 hover:scale-[1.03] active:scale-95"
-      >
-        <Play className="size-4 fill-current" /> Tout lire
-      </button>
-      <TrackList tracks={tracks} />
+      {tab === "albums" && <Albums />}
+      {tab === "artists" && <Artists />}
+      {tab === "tracks" && <Tracks />}
     </>
   );
 }
 
-function LocalTab() {
-  const folders = useLibrary((s) => s.folders);
-  const local = useLibrary((s) => s.local);
-  const scanning = useLibrary((s) => s.scanning);
-  const { addFolder, removeFolder, rescan } = useLibrary.getState();
-  const desktop = isTauri();
-
-  const add = async () => {
-    try {
-      const path = await pickFolder();
-      if (path) await addFolder(path);
-    } catch (err) {
-      toast.error("Impossible d'ouvrir ce dossier", { description: String(err) });
-    }
-  };
-
-  return (
-    <>
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={add}
-          disabled={!desktop || scanning}
-          className="flex h-9 items-center gap-2 rounded-full bg-fg px-4 text-[13px] font-semibold text-bg transition hover:scale-[1.03] active:scale-95 disabled:opacity-40"
-        >
-          <FolderPlus className="size-4" /> Ajouter un dossier
-        </button>
-        {folders.length > 0 && (
-          <button
-            type="button"
-            onClick={() => void rescan()}
-            disabled={!desktop || scanning}
-            className="flex h-9 items-center gap-2 rounded-full px-4 text-[13px] font-semibold ring-1 ring-white/20 transition hover:ring-white/50 disabled:opacity-40"
-          >
-            {scanning ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />} Rescanner
-          </button>
-        )}
-      </div>
-      {!desktop && <p className="mt-3 text-[13px] text-faint">L'accès aux fichiers locaux n'existe que dans l'application desktop.</p>}
-
-      {folders.length > 0 && (
-        <ul className="mt-5 flex flex-wrap gap-2">
-          {folders.map((f) => (
-            <li key={f} className="flex h-8 items-center gap-2 rounded-full bg-white/[0.05] pl-3 pr-1.5 text-[12px] text-muted">
-              <span className="max-w-[360px] truncate" title={f}>
-                {f}
-              </span>
-              <button type="button" aria-label={`Retirer ${f}`} onClick={() => removeFolder(f)} className="rounded-full p-1 hover:bg-white/10 hover:text-fg">
-                <X className="size-3.5" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="mt-8">
-        {local.length ? <TracksTab tracks={local} empty="" /> : <Empty>Ajoutez un dossier contenant des fichiers MP3, FLAC, WAV, M4A ou OGG.</Empty>}
-      </div>
-    </>
-  );
+function Albums() {
+  const q = useQuery(() => api.albums(), []);
+  if (q.status === "error") return <ErrorState message={q.error} />;
+  return q.data ? <AlbumGrid albums={q.data} /> : <Spinner />;
 }
 
-function Empty({ children }: { children: string }) {
-  return <p className="py-10 text-[14px] text-muted">{children}</p>;
+function Artists() {
+  const q = useQuery(() => api.artists(), []);
+  if (q.status === "error") return <ErrorState message={q.error} />;
+  return q.data ? <ArtistGrid artists={q.data} /> : <Spinner />;
+}
+
+function Tracks() {
+  const q = useQuery(() => api.tracks(), []);
+  if (q.status === "error") return <ErrorState message={q.error} />;
+  if (!q.data) return <Spinner />;
+  return (
+    <>
+      <PlayButton label="Lire toute la bibliothèque" onClick={() => playTracks(q.data!, 0)} disabled={!q.data.length} className="mb-6" />
+      <TrackTable tracks={q.data} />
+    </>
+  );
 }

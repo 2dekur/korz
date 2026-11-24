@@ -1,5 +1,5 @@
 import { cn } from "@/lib/cn";
-import { hueFromSeed } from "@/lib/music";
+import { hueFromSeed } from "@/lib/format";
 
 interface ArtworkProps {
   src?: string;

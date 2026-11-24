@@ -1,9 +1,15 @@
 import { create } from "zustand";
 
-export type SidePanel = "queue" | "lyrics";
+interface UiState {
+  queueOpen: boolean;
+  search: string;
+  toggleQueue: () => void;
+  setSearch: (search: string) => void;
+}
 
-/** Layout state that is not a route: one side panel at a time. */
-export const useUi = create<{ panel: SidePanel | null; togglePanel: (p: SidePanel) => void }>((set) => ({
-  panel: null,
-  togglePanel: (p) => set((s) => ({ panel: s.panel === p ? null : p })),
+export const useUi = create<UiState>((set) => ({
+  queueOpen: false,
+  search: "",
+  toggleQueue: () => set((s) => ({ queueOpen: !s.queueOpen })),
+  setSearch: (search) => set({ search }),
 }));

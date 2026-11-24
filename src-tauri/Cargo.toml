@@ -1,16 +1,12 @@
 [package]
 name = "korz"
-version = "0.0.6"
-description = "Korz — lecteur musical desktop"
-authors = ["you"]
+version = "0.0.1"
+description = "KORZ Music — lecteur musical desktop"
+authors = ["2dekur"]
 edition = "2024"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+# `_lib` suffix: avoids a name clash between the lib and the bin on Windows (cargo#8519).
 name = "korz_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
@@ -18,25 +14,22 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset"] }
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-log = "2"
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri-plugin-store = "2"
-tauri-plugin-fs = "2"
-tauri-plugin-dialog = "2"
-tauri-plugin-os = "2"
-tauri-plugin-http = "2"
-tauri-plugin-persisted-scope = { version = "2", features = ["protocol-asset"] }
-rustypipe = "0.11.4"
-tauri-plugin-process = "2"
+thiserror = "2"
+log = "0.4"
+# Audio output + decoding (symphonia: MP3, FLAC, WAV, AAC/ADTS, M4A/ALAC, OGG Vorbis).
+rodio = { version = "0.23", default-features = false, features = ["playback", "mp3", "flac", "wav", "vorbis", "mp4", "symphonia-alac"] }
+# Tags, embedded covers and exact durations for every supported format.
+lofty = "0.25"
+rusqlite = { version = "0.43", features = ["bundled"] }
+# Content hash for cached cover files.
 sha2 = "0.10"
 
-
-[dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-
-# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
 codegen-units = 1
 lto = true
@@ -45,5 +38,4 @@ panic = "abort"
 strip = true
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-updater = "2"
 tauri-plugin-window-state = "2"
